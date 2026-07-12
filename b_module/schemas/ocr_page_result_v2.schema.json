@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCRPageResultV2",
+  "type": "object",
+  "required": [
+    "file_id",
+    "page_no",
+    "image_path",
+    "width",
+    "height",
+    "dpi",
+    "coordinate_base",
+    "ocr_engine",
+    "blocks"
+  ],
+  "properties": {
+    "file_id": { "type": "string" },
+    "page_no": { "type": "integer", "minimum": 1 },
+    "image_path": { "type": "string" },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "dpi": { "type": "integer", "minimum": 1 },
+    "coordinate_base": {
+      "type": "string",
+      "enum": ["page_image", "preprocessed_image"]
+    },
+    "ocr_engine": { "type": "string" },
+    "overall_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "block_id",
+          "bbox",
+          "bbox_source",
+          "source_mode",
+          "text",
+          "confidence",
+          "reading_order",
+          "is_low_confidence"
+        ],
+        "properties": {
+          "block_id": { "type": "string" },
+          "bbox": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": { "type": "number" }
+          },
+          "bbox_source": {
+            "type": "string",
+            "enum": ["ocr", "estimated", "rendered"]
+          },
+          "source_mode": {
+            "type": "string",
+            "enum": ["ocr", "text_extract", "image_marker"]
+          },
+          "text": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "reading_order": { "type": "integer", "minimum": 1 },
+          "line_index": { "type": "integer", "minimum": 1 },
+          "is_low_confidence": { "type": "boolean" },
+          "block_type": { "type": "string" },
+          "image_id": { "type": "string" },
+          "image_path": { "type": "string" },
+          "parent_block_id": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

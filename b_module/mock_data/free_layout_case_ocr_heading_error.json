@@ -1,0 +1,77 @@
+﻿{
+  "file_id": "file_mock_003",
+  "normalized_pages": [
+    {
+      "file_id": "file_mock_003",
+      "page_no": 1,
+      "page_image_path": "/storage/raw/file_mock_003_p1.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_003_p1.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    }
+  ],
+  "page_ocr_results": [
+    {
+      "file_id": "file_mock_003",
+      "page_no": 1,
+      "image_path": "/storage/preprocessed/file_mock_003_p1.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.79,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_003_p001_0001",
+          "bbox": [100, 120, 900, 180],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "1. 请解释相关概念。",
+          "confidence": 0.95,
+          "reading_order": 1,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_003_p001_0002",
+          "bbox": [110, 200, 1600, 320],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第一题答案内容，解释概念并举例。",
+          "confidence": 0.88,
+          "reading_order": 2,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_003_p001_0003",
+          "bbox": [100, 360, 900, 420],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "Z. 请分析案例。",
+          "confidence": 0.41,
+          "reading_order": 3,
+          "is_low_confidence": true
+        },
+        {
+          "block_id": "blk_file_mock_003_p001_0004",
+          "bbox": [110, 430, 1600, 540],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第二题答案内容，分析案例并给出结论。",
+          "confidence": 0.84,
+          "reading_order": 4,
+          "is_low_confidence": false
+        }
+      ]
+    }
+  ]
+}

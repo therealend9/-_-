@@ -1,0 +1,23 @@
+# Python and local tooling
+__pycache__/
+*.py[cod]
+.venv/
+.venv-ocr/
+.runtime/
+
+# Runtime data and generated results
+storage/*
+*.zip
+outputs/
+outputs_*/
+*.log
+
+# Local source samples and temporary uploads
+揭榜挂帅_思政卷子/
+storage/template_uploads/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

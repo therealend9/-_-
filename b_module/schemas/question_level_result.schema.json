@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QuestionLevelResult",
+  "type": "object",
+  "required": ["question_no", "route_type", "page_nos", "ocr_text", "final_text", "confidence", "needs_review"],
+  "properties": {
+    "file_id": { "type": "string" },
+    "merge_group_id": { "type": "string" },
+    "question_no": { "type": "string" },
+    "route_type": {
+      "type": "string",
+      "enum": ["uniform_exam", "free_layout_homework"]
+    },
+    "page_nos": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 }
+    },
+    "ocr_text": { "type": "string" },
+    "corrected_text": { "type": "string" },
+    "final_text": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "needs_review": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

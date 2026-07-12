@@ -1,0 +1,77 @@
+﻿{
+  "file_id": "file_mock_001",
+  "normalized_pages": [
+    {
+      "file_id": "file_mock_001",
+      "page_no": 1,
+      "page_image_path": "/storage/raw/file_mock_001_p1.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_001_p1.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    }
+  ],
+  "page_ocr_results": [
+    {
+      "file_id": "file_mock_001",
+      "page_no": 1,
+      "image_path": "/storage/preprocessed/file_mock_001_p1.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.93,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_001_p001_0001",
+          "bbox": [100, 120, 900, 180],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "1. 什么是社会主义核心价值观？",
+          "confidence": 0.97,
+          "reading_order": 1,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_001_p001_0002",
+          "bbox": [110, 200, 1600, 320],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "社会主义核心价值观包括富强、民主、文明、和谐等内容。",
+          "confidence": 0.94,
+          "reading_order": 2,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_001_p001_0003",
+          "bbox": [100, 360, 900, 420],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "2. 请简述你的理解。",
+          "confidence": 0.96,
+          "reading_order": 3,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_001_p001_0004",
+          "bbox": [110, 430, 1600, 540],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "我认为这体现了国家、社会和个人三个层面的价值要求。",
+          "confidence": 0.90,
+          "reading_order": 4,
+          "is_low_confidence": false
+        }
+      ]
+    }
+  ]
+}

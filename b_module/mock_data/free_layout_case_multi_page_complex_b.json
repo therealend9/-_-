@@ -1,0 +1,187 @@
+﻿{
+  "file_id": "file_mock_006",
+  "normalized_pages": [
+    {
+      "file_id": "file_mock_006",
+      "page_no": 1,
+      "page_image_path": "/storage/raw/file_mock_006_p1.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_006_p1.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    },
+    {
+      "file_id": "file_mock_006",
+      "page_no": 2,
+      "page_image_path": "/storage/raw/file_mock_006_p2.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_006_p2.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    },
+    {
+      "file_id": "file_mock_006",
+      "page_no": 3,
+      "page_image_path": "/storage/raw/file_mock_006_p3.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_006_p3.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    }
+  ],
+  "page_ocr_results": [
+    {
+      "file_id": "file_mock_006",
+      "page_no": 1,
+      "image_path": "/storage/preprocessed/file_mock_006_p1.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.78,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_006_p001_0001",
+          "bbox": [100, 120, 980, 180],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "1. 请说明课程中的关键方法。",
+          "confidence": 0.9,
+          "reading_order": 1,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_006_p001_0002",
+          "bbox": [110, 210, 1700, 430],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第一题答案内容，概述方法并说明应用场景。",
+          "confidence": 0.87,
+          "reading_order": 2,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_006_p001_0003",
+          "bbox": [100, 500, 980, 560],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "2. 请分析一个实际案例。",
+          "confidence": 0.68,
+          "reading_order": 3,
+          "is_low_confidence": true
+        },
+        {
+          "block_id": "blk_file_mock_006_p001_0004",
+          "bbox": [110, 2900, 1760, 3110],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第二题答案第一部分，从案例背景和问题界定开始。",
+          "confidence": 0.8,
+          "reading_order": 4,
+          "is_low_confidence": true
+        }
+      ]
+    },
+    {
+      "file_id": "file_mock_006",
+      "page_no": 2,
+      "image_path": "/storage/preprocessed/file_mock_006_p2.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.73,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_006_p002_0001",
+          "bbox": [120, 90, 1780, 260],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第二题答案第二部分，继续分析原因并提出改进建议。",
+          "confidence": 0.79,
+          "reading_order": 1,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_006_p002_0002",
+          "bbox": [100, 450, 980, 510],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "2. 请补充你的反思。",
+          "confidence": 0.58,
+          "reading_order": 2,
+          "is_low_confidence": true
+        },
+        {
+          "block_id": "blk_file_mock_006_p002_0003",
+          "bbox": [110, 540, 1680, 710],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "这一段像是新的第二题，但也可能是重复题号。",
+          "confidence": 0.76,
+          "reading_order": 3,
+          "is_low_confidence": false
+        }
+      ]
+    },
+    {
+      "file_id": "file_mock_006",
+      "page_no": 3,
+      "image_path": "/storage/preprocessed/file_mock_006_p3.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.75,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_006_p003_0001",
+          "bbox": [100, 130, 980, 190],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "Z. 请写出课程的整体总结。",
+          "confidence": 0.39,
+          "reading_order": 1,
+          "is_low_confidence": true
+        },
+        {
+          "block_id": "blk_file_mock_006_p003_0002",
+          "bbox": [110, 220, 1720, 460],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "这一页总结内容可能本应属于第三题，但题号识别失败。",
+          "confidence": 0.81,
+          "reading_order": 2,
+          "is_low_confidence": false
+        }
+      ]
+    }
+  ]
+}

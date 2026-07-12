@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCRPageResult",
+  "type": "object",
+  "required": ["file_id", "page_no", "ocr_engine", "blocks"],
+  "properties": {
+    "file_id": { "type": "string" },
+    "page_no": { "type": "integer", "minimum": 1 },
+    "ocr_engine": { "type": "string" },
+    "overall_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["block_id", "bbox", "text", "confidence", "reading_order", "is_low_confidence"],
+        "properties": {
+          "block_id": { "type": "string" },
+          "bbox": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": { "type": "number" }
+          },
+          "text": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "reading_order": { "type": "integer", "minimum": 1 },
+          "line_index": { "type": "integer", "minimum": 1 },
+          "is_low_confidence": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

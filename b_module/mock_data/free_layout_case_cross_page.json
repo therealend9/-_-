@@ -1,0 +1,97 @@
+﻿{
+  "file_id": "file_mock_002",
+  "normalized_pages": [
+    {
+      "file_id": "file_mock_002",
+      "page_no": 1,
+      "page_image_path": "/storage/raw/file_mock_002_p1.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_002_p1.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    },
+    {
+      "file_id": "file_mock_002",
+      "page_no": 2,
+      "page_image_path": "/storage/raw/file_mock_002_p2.png",
+      "preprocessed_image_path": "/storage/preprocessed/file_mock_002_p2.png",
+      "original_width": 2480,
+      "original_height": 3508,
+      "processed_width": 2480,
+      "processed_height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "transform_matrix": null,
+      "is_text_pdf_page": false,
+      "rotation_degree": 0,
+      "has_perspective_fix": false,
+      "preprocess_steps": ["grayscale", "denoise", "binarize"]
+    }
+  ],
+  "page_ocr_results": [
+    {
+      "file_id": "file_mock_002",
+      "page_no": 1,
+      "image_path": "/storage/preprocessed/file_mock_002_p1.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.88,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_002_p001_0001",
+          "bbox": [100, 120, 900, 180],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "2. 请结合课堂内容谈谈你的理解。",
+          "confidence": 0.95,
+          "reading_order": 1,
+          "is_low_confidence": false
+        },
+        {
+          "block_id": "blk_file_mock_002_p001_0002",
+          "bbox": [110, 200, 1600, 420],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第一部分答案，从课程背景出发进行分析。",
+          "confidence": 0.78,
+          "reading_order": 2,
+          "is_low_confidence": true
+        }
+      ]
+    },
+    {
+      "file_id": "file_mock_002",
+      "page_no": 2,
+      "image_path": "/storage/preprocessed/file_mock_002_p2.png",
+      "width": 2480,
+      "height": 3508,
+      "dpi": 300,
+      "coordinate_base": "preprocessed_image",
+      "ocr_engine": "paddleocr",
+      "overall_confidence": 0.91,
+      "blocks": [
+        {
+          "block_id": "blk_file_mock_002_p002_0001",
+          "bbox": [120, 100, 1700, 260],
+          "bbox_source": "ocr",
+          "source_mode": "ocr",
+          "text": "第二部分答案，结合现实案例进一步展开。",
+          "confidence": 0.90,
+          "reading_order": 1,
+          "is_low_confidence": false
+        }
+      ]
+    }
+  ]
+}

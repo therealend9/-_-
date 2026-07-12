@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NormalizedPageV2",
+  "type": "object",
+  "required": [
+    "file_id",
+    "page_no",
+    "page_image_path",
+    "preprocessed_image_path",
+    "original_width",
+    "original_height",
+    "processed_width",
+    "processed_height",
+    "dpi",
+    "coordinate_base"
+  ],
+  "properties": {
+    "file_id": { "type": "string" },
+    "page_no": { "type": "integer", "minimum": 1 },
+    "page_image_path": { "type": "string" },
+    "preprocessed_image_path": { "type": "string" },
+    "original_width": { "type": "integer", "minimum": 1 },
+    "original_height": { "type": "integer", "minimum": 1 },
+    "processed_width": { "type": "integer", "minimum": 1 },
+    "processed_height": { "type": "integer", "minimum": 1 },
+    "dpi": { "type": "integer", "minimum": 1 },
+    "coordinate_base": {
+      "type": "string",
+      "enum": ["page_image", "preprocessed_image"]
+    },
+    "transform_matrix": {
+      "type": ["array", "null"]
+    },
+    "rotation_degree": { "type": "number" },
+    "has_perspective_fix": { "type": "boolean" },
+    "preprocess_steps": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

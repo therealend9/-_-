@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RouteDecision",
+  "type": "object",
+  "required": ["file_id", "route_type", "reason"],
+  "properties": {
+    "file_id": { "type": "string" },
+    "route_type": {
+      "type": "string",
+      "enum": ["uniform_exam", "free_layout_homework"]
+    },
+    "reason": { "type": "string" },
+    "template_id": {
+      "type": ["string", "null"]
+    }
+  },
+  "additionalProperties": false
+}

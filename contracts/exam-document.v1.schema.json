@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "exam-document.v1.schema.json",
+  "title": "Exam Document Processing Result v1",
+  "description": "Stable response contract for POST /api/process.",
+  "oneOf": [
+    { "$ref": "#/$defs/questionPaperResult" },
+    { "$ref": "#/$defs/answerSheetResult" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["schema_version", "submission_id", "exam_id", "exam_name", "document_role", "layout_type"],
+      "properties": {
+        "schema_version": { "const": "exam-document.v1" },
+        "submission_id": { "type": "string", "minLength": 1 },
+        "exam_id": { "type": ["string", "null"] },
+        "exam_name": { "type": ["string", "null"] },
+        "document_role": { "enum": ["question_paper", "answer_sheet"] },
+        "layout_type": { "enum": ["free", "fixed"] },
+        "template_id": { "type": "string", "minLength": 1 },
+        "template_name": { "type": "string" },
+        "template_version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": ["question_id", "question_no", "page_nos", "confidence", "needs_review", "risk_flags"],
+      "properties": {
+        "question_id": { "type": "string", "minLength": 1 },
+        "question_no": { "type": "string", "minLength": 1 },
+        "page_nos": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "needs_review": { "type": "boolean" },
+        "risk_flags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "question": {
+      "allOf": [
+        { "$ref": "#/$defs/review" },
+        {
+          "type": "object",
+          "required": ["question_text"],
+          "properties": { "question_text": { "type": "string" } }
+        }
+      ]
+    },
+    "answer": {
+      "allOf": [
+        { "$ref": "#/$defs/review" },
+        {
+          "type": "object",
+          "required": ["answer_text", "is_blank"],
+          "properties": {
+            "answer_text": { "type": "string" },
+            "is_blank": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+    "questionPaperResult": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["questions"],
+          "properties": {
+            "document_role": { "const": "question_paper" },
+            "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } }
+          }
+        }
+      ]
+    },
+    "answerSheetResult": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["document_role", "template_id", "template_name", "template_version", "answers"],
+          "properties": {
+            "document_role": { "const": "answer_sheet" },
+            "layout_type": { "const": "fixed" },
+            "answers": { "type": "array", "items": { "$ref": "#/$defs/answer" } }
+          }
+        }
+      ]
+    }
+  }
+}

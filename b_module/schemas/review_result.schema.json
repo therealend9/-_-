@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReviewResult",
+  "type": "object",
+  "required": ["review_id", "file_id", "question_no", "before_text", "after_text", "operator_id", "review_time"],
+  "properties": {
+    "review_id": { "type": "string" },
+    "file_id": { "type": "string" },
+    "question_no": { "type": "string" },
+    "merge_group_id": { "type": "string" },
+    "before_text": { "type": "string" },
+    "after_text": { "type": "string" },
+    "operator_id": { "type": "string" },
+    "review_reason": { "type": "string" },
+    "review_time": { "type": "string" }
+  },
+  "additionalProperties": false
+}
