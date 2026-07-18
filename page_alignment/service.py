@@ -24,7 +24,7 @@ def align_page_to_template(
     if cv2 is None:
         return _scale_with_pillow(page, template_page)
     source_path = Path(page.get("preprocessed_image_path") or page["page_image_path"])
-    student = cv2.imread(str(source_path), cv2.IMREAD_COLOR)
+    student = _read_image(cv2, source_path, cv2.IMREAD_COLOR)
     if student is None:
         raise ValueError(f"Cannot read submitted page image: {source_path}")
 
@@ -35,15 +35,15 @@ def align_page_to_template(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if reference_path and reference_path.is_file():
-        reference = cv2.imread(str(reference_path), cv2.IMREAD_COLOR)
+        reference = _read_image(cv2, reference_path, cv2.IMREAD_COLOR)
         if reference is None:
             raise ValueError(f"Cannot read template reference image: {reference_path}")
         reference = cv2.resize(reference, (target_width, target_height))
         reference_output_path = config.PREPROCESSED_DIR / f"{page['file_id']}_p{int(page['page_no']):03d}_template_ref.png"
-        cv2.imwrite(str(reference_output_path), reference)
+        _write_image(cv2, reference_output_path, reference)
         aligned, confidence = _align_with_orb(cv2, student, reference)
         if aligned is not None:
-            cv2.imwrite(str(output_path), aligned)
+            _write_image(cv2, output_path, aligned)
             return {
                 "image_path": str(output_path),
                 "alignment_confidence": confidence,
@@ -56,7 +56,7 @@ def align_page_to_template(
             }
 
     resized = cv2.resize(student, (target_width, target_height))
-    cv2.imwrite(str(output_path), resized)
+    _write_image(cv2, output_path, resized)
     return {
         "image_path": str(output_path),
         "alignment_confidence": 0.0,
@@ -126,3 +126,22 @@ def _optional_cv2() -> Any | None:
     except ImportError:
         return None
     return cv2
+
+
+def _read_image(cv2: Any, path: Path, flags: int) -> Any | None:
+    """Read images through bytes so Windows paths containing non-ASCII work."""
+    import numpy as np
+
+    data = np.fromfile(str(path), dtype=np.uint8)
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, flags)
+
+
+def _write_image(cv2: Any, path: Path, image: Any) -> None:
+    """Write images through bytes for Windows paths containing non-ASCII text."""
+    extension = path.suffix or ".png"
+    ok, encoded = cv2.imencode(extension, image)
+    if not ok:
+        raise ValueError(f"Cannot encode image for output: {path}")
+    encoded.tofile(str(path))

@@ -33,11 +33,14 @@ def decide_layout_route(
     page_results = list(page_results or [])
     normalized_pages = list(normalized_pages or [])
 
-    low_conf_pages = sum(
-        1
-        for page in page_results
-        if float(page.get("overall_confidence", 1.0)) < 0.8
-    )
+    low_conf_pages = 0
+    for page in page_results:
+        # OCR engines may explicitly return null when a page has no usable
+        # confidence aggregate. Treat that as unknown quality and let the
+        # free-layout route continue to perform its own review checks.
+        confidence = page.get("overall_confidence")
+        if confidence is not None and float(confidence) < 0.8:
+            low_conf_pages += 1
     text_extract_pages = sum(
         1
         for page in page_results

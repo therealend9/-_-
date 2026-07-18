@@ -1,37 +1,20 @@
 # 考试文件识别 API 接口文档
 
-## 1. 基本信息
+## 1. 范围
 
-- 服务地址：`http://127.0.0.1:8000`
-- OpenAPI 页面：`/docs`
-- 输出 JSON Schema：[exam-document.v1.schema.json](../contracts/exam-document.v1.schema.json)
-- 正式处理结果版本：`exam-document.v1`
-- 完整调用顺序和工作流消费规则：[工作流接入指南](考试文件识别模块工作流接入指南.md)
+当前版本只处理三类输入：
 
-所有 JSON 请求使用 `application/json`；文件上传接口使用 `multipart/form-data`。错误响应为：
+1. 自由版式试题卷，输出 `questions[]`。
+2. 空白答题卡，用于生成和复核固定模板。
+3. 学生答题卡，按已发布模板裁剪并识别手写作答，输出 `answers[]`。
 
-```json
-{
-  "detail": "错误说明"
-}
-```
+本模块不接收或保存独立的标准答案文件，不支持 `document_role=answer_key`，也不负责评分和答案比对。
 
-`/api/process` 在答题卡未绑定模板时返回：
-
-```json
-{
-  "detail": {
-    "error_code": "TEMPLATE_NOT_BOUND",
-    "message": "TEMPLATE_NOT_BOUND: exam_id"
-  }
-}
-```
+服务地址：`http://127.0.0.1:8000`，OpenAPI：`/docs`，输出版本：`exam-document.v1`。
 
 ## 2. 考试与题目目录
 
-### 创建考试
-
-`POST /api/exams`
+### `POST /api/exams`
 
 ```json
 {
@@ -41,97 +24,67 @@
 }
 ```
 
-`exam_id` 是后端稳定标识；`exam_name` 仅用于展示。
+### `GET /api/exams`、`GET /api/exams/{exam_id}`
 
-### 查询考试
+查询考试、名称、状态和已绑定模板信息。
 
-`GET /api/exams`，或 `GET /api/exams/{exam_id}`。
+### `GET /api/exams/{exam_id}/questions`
 
-响应包含考试名称、状态、当前模板 ID、模板名称和模板版本。
+查询已保存的题目目录。`question_id` 是试题、答题卡模板和学生答题结果之间唯一的关联键。
 
-### 查询题目目录
+### `PATCH /api/exams/{exam_id}/status`
 
-`GET /api/exams/{exam_id}/questions`
+请求体：`{"status":"published"}`。考试发布前必须已经绑定已发布模板。
 
-响应是题目数组。`question_id` 是试题卷、答题卡模板和最终答案之间唯一允许使用的关联键。
+## 3. 空白答题卡模板
 
-```json
-[
-  {
-    "question_id": "2.1",
-    "question_no": "2.1",
-    "question_text": "题干内容",
-    "order": 5
-  }
-]
-```
+### `POST /api/templates/drafts`
 
-### 发布考试
+使用 `multipart/form-data`：
 
-`PATCH /api/exams/{exam_id}/status`
+| 字段 | 必填 | 说明 |
+|---|---:|---|
+| `file` | 是 | 空白答题卡 PDF/JPG/PNG/DOCX |
+| `template_id` | 是 | 模板 ID |
+| `template_name` | 是 | 前端展示名称 |
+| `version` | 是 | 正整数版本 |
+| `exam_id` | 是 | 已建立题目目录的考试 ID |
 
-```json
-{ "status": "published" }
-```
+服务自动提出书写区域，返回 `pending_review` 模板草稿。前端必须允许老师调整区域并确认 `question_id`。
 
-考试必须先绑定模板才能发布。发布后不能重新绑定或更换模板。
+### 模板维护接口
 
-## 3. 模板接口
-
-### 创建答题卡模板草稿
-
-`POST /api/templates/drafts`
-
-表单字段：
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---:|---|
-| `file` | 文件 | 是 | 空白答题卡 PDF/JPG/PNG |
-| `template_id` | 字符串 | 是 | 模板唯一 ID |
-| `template_name` | 字符串 | 是 | 模板名称 |
-| `version` | 整数 | 是 | 正整数模板版本 |
-| `exam_id` | 字符串 | 是 | 已有题目目录的考试 ID |
-
-后端按区域阅读顺序映射题目目录 ID。答题卡上印刷的题号保存为 `template_label`，不是最终关联键。
-
-### 读取、复核和发布模板
-
-- `GET /api/templates/{template_id}`：获取模板及其页面、候选区域。
-- `PUT /api/templates/{template_id}/review`：请求体为 `{ "pages": [...], "publish": false }`，保存人工复核后的完整页面数组。
+- `GET /api/templates/{template_id}`：读取模板草稿。
+- `PUT /api/templates/{template_id}/review`：保存人工复核后的完整 `pages`。
 - `POST /api/templates/{template_id}/publish`：发布模板。
-- `POST /api/exams/{exam_id}/template`：请求体为 `{ "template_id": "tpl_mayuan_1516_v1" }`，绑定已发布模板。
+- `POST /api/exams/{exam_id}/template`：把已发布模板绑定到考试。
 
-绑定时后端强制检查：考试存在且为 `draft`、模板已发布且版本明确、模板答案区域 ID 与题目目录 ID 一致；答题卡已有成功提交时不能更换模板。
+绑定强制校验：考试存在且状态允许、模板已发布、版本明确、模板区域的 `question_id` 与题目目录完全一致；已有学生答题卡提交后不能更换模板。
 
-## 4. 文件处理
+## 4. 文件处理接口
 
-### 请求
+### `POST /api/process`
 
-`POST /api/process`
+请求类型为 `multipart/form-data`：
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---:|---|
-| `file` | 文件 | 是 | PDF、JPG、PNG 或 DOCX |
-| `document_role` | 枚举 | 是 | `question_paper` 或 `answer_sheet` |
-| `exam_id` | 字符串 | 条件必填 | 答题卡必填；需要保存试题题目目录时，试题卷也必须传入 |
-| `submission_id` | 字符串 | 否 | 调用方幂等标识；省略时由服务生成 |
+| 字段 | 必填 | 取值或说明 |
+|---|---:|---|
+| `file` | 是 | PDF、JPG、PNG 或 DOCX |
+| `document_role` | 是 | `question_paper` 或 `answer_sheet` |
+| `exam_id` | 条件必填 | 试题卷保存题目目录、答题卡读取绑定模板时必填 |
+| `submission_id` | 否 | 调用方生成的稳定幂等标识 |
 
-答题卡请求不传 `template_id`，服务端按 `exam_id` 解析已绑定模板。
+不再接受 `answer_key`，也不接受 `answer_key_version`。
 
-### 共同响应字段
+成功结果会按 `submission_id` 持久化。相同 `submission_id`、相同文件内容、相同考试和模板版本再次提交时，服务直接返回已保存的结果，不重复执行 OCR；若相同 `submission_id` 对应的文件或上下文不同，返回 `422`。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `schema_version` | 字符串 | 固定为 `exam-document.v1` |
-| `submission_id` | 字符串 | 本次处理标识 |
-| `exam_id` | 字符串或 `null` | 考试标识 |
-| `exam_name` | 字符串或 `null` | 考试名称 |
-| `document_role` | 枚举 | 文件角色 |
-| `layout_type` | 枚举 | `free` 或 `fixed` |
+### `GET /api/submissions/{submission_id}`
 
-### 试题卷成功响应
+读取一次成功 `POST /api/process` 的已保存最终结果。响应结构与原处理接口完全一致。
 
-当 `document_role=question_paper` 时，响应含 `questions[]`：
+### 试题卷
+
+`document_role=question_paper`，使用自由版式识别，成功响应包含：
 
 ```json
 {
@@ -155,9 +108,11 @@
 }
 ```
 
-### 答题卡成功响应
+提交 `exam_id` 时，服务端同时保存题目目录。
 
-当 `document_role=answer_sheet` 时，响应含模板信息和 `answers[]`：
+### 学生答题卡
+
+`document_role=answer_sheet`，必须传 `exam_id`，服务端自动查询考试绑定的固定模板，不允许调用方直接指定模板：
 
 ```json
 {
@@ -185,10 +140,13 @@
 }
 ```
 
-`question_id` 必须用于与试题卷的 `questions[].question_id` 关联。`question_no` 仅用于显示，不应作为跨模块关联键。
+处理顺序为：页面对齐、固定区域裁剪、空白检测、手写 OCR、同题多区域合并。`question_id` 必须与题目目录一致；`question_no` 仅用于展示。
 
-## 5. 兼容性规则
+## 5. 错误与兼容
 
-- `exam-document.v1` 内只新增可选字段，不删除或改变既有字段类型。
-- 需要删除字段、改变字段类型或改变字段语义时，发布新的 `schema_version`，例如 `exam-document.v2`。
-- 接入方应拒绝或显式降级处理不认识的主版本，而不是假定格式兼容。
+- `400`：文件为空或类型不支持。
+- `404`：考试或模板不存在。
+- `422`：模板未绑定、模板未发布、题目 ID 不一致或角色不支持。
+- `503`：OCR 运行依赖缺失。
+
+机器校验定义见 [exam-document.v1.schema.json](../contracts/exam-document.v1.schema.json)。

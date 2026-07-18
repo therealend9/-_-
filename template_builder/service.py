@@ -7,11 +7,18 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from d_module.pipeline import process_file_to_ocr_results
+from d_module.constants import PARSE_MODE_PDF_TEXT
+from d_module.document_parser.service import classify_and_parse_document
+from d_module.file_ingest.service import create_file_task
+from d_module.ocr_engine.service import build_pdf_text_ocr_result
+from d_module.page_renderer.docx_pdf_renderer import convert_docx_to_pdf
+from d_module.page_renderer.service import render_pages_to_images
 from template_registry.service import TEMPLATE_ROOT, get_exam_questions, save_template
 
 
-QUESTION_LABEL_RE = re.compile(r"^\s*(?:第\s*)?(\d+(?:[.．、]\d+)?)(?:\s*[、．.）)])?\s*$")
+QUESTION_LABEL_RE = re.compile(
+    r"^\s*(?:第\s*)?(\d+(?:[.．、]\d+)?)(?:\s*[、．.）)]?\s*[:：]?\s*(?:答案)?\s*)?$"
+)
 
 
 def build_template_draft(
@@ -24,23 +31,27 @@ def build_template_draft(
 ) -> dict[str, Any]:
     """Create a pending-review answer-sheet template from a blank source file.
 
-    Candidate regions are inferred from printed question labels and are never
-    auto-published. The template editor must review the generated rectangles.
+    Candidate regions are inferred from table/rectangle borders first, then
+    associated with printed labels when available. They are never
+    auto-published; the template editor must review every rectangle.
     """
     source = Path(source_path)
-    a_result = process_file_to_ocr_results(
-        submission_id=f"template_{template_id}",
-        origin_name=source.name,
-        mime_type=mime_type,
-        file_size=source.stat().st_size,
-        source_path=source,
-        # A blank PDF frequently has a usable text layer for printed labels.
-        # Keeping auto mode avoids requiring OCR merely to build a draft.
-        parse_strategy="auto",
-    )
     template_dir = TEMPLATE_ROOT / template_id
     template_dir.mkdir(parents=True, exist_ok=True)
-    pages = _build_pages(a_result["normalized_pages"], a_result["ocr_page_results"], template_dir)
+    processing_source = source
+    processing_mime_type = mime_type
+    if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        # DOCX table coordinates are document-flow coordinates, not physical
+        # page coordinates. Render through Word/LibreOffice before detecting
+        # answer boxes so normalized bbox values match later scanned pages.
+        processing_source = convert_docx_to_pdf(source, template_dir / "source_pdf")
+        processing_mime_type = "application/pdf"
+    normalized_pages, ocr_page_results = _load_template_pages(
+        submission_id=f"template_{template_id}",
+        source_path=processing_source,
+        mime_type=processing_mime_type,
+    )
+    pages = _build_pages(normalized_pages, ocr_page_results, template_dir)
     mapping_status = "not_requested"
     if exam_id:
         pages, mapping_status = _map_regions_to_exam_questions(pages, get_exam_questions(exam_id))
@@ -56,6 +67,44 @@ def build_template_draft(
         "pages": pages,
     }
     return save_template(template)
+
+
+def _load_template_pages(
+    submission_id: str,
+    source_path: Path,
+    mime_type: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Render a blank card without expensive whole-page OCR.
+
+    Template construction needs geometry, not handwritten text. PDF text blocks
+    are retained when present for label association; scanned files continue with
+    empty labels and rely on rectangle detection plus human review.
+    """
+    file_task = create_file_task(
+        submission_id=submission_id,
+        origin_name=source_path.name,
+        mime_type=mime_type,
+        file_size=source_path.stat().st_size,
+        source_path=source_path,
+    )
+    parse_result = classify_and_parse_document(file_task)
+    pages = render_pages_to_images(file_task, parse_result)
+    text_by_page = {
+        int(item["page_no"]): item
+        for item in parse_result.get("extracted_text_pages", [])
+    }
+    ocr_page_results: list[dict[str, Any]] = []
+    for page in pages:
+        extracted = text_by_page.get(page.page_no)
+        if parse_result["parse_mode"] == PARSE_MODE_PDF_TEXT and extracted and extracted.get("usable"):
+            ocr_page_results.append(build_pdf_text_ocr_result(file_task.file_id, page, extracted).to_dict())
+        else:
+            ocr_page_results.append({
+                "file_id": file_task.file_id,
+                "page_no": page.page_no,
+                "blocks": [],
+            })
+    return [page.to_dict() for page in pages], ocr_page_results
 
 
 def propose_regions_from_ocr_pages(
@@ -101,7 +150,7 @@ def _build_pages(
     ocr_page_results: list[dict[str, Any]],
     template_dir: Path,
 ) -> list[dict[str, Any]]:
-    proposals = propose_regions_from_ocr_pages(normalized_pages, ocr_page_results)
+    proposals = propose_regions_from_page_layout(normalized_pages, ocr_page_results)
     regions_by_page: dict[int, list[dict[str, Any]]] = {}
     for region in proposals:
         regions_by_page.setdefault(int(region.pop("page_no")), []).append(region)
@@ -119,6 +168,113 @@ def _build_pages(
             "regions": regions_by_page.get(page_no, []),
         })
     return pages
+
+
+def propose_regions_from_page_layout(
+    normalized_pages: list[dict[str, Any]],
+    ocr_page_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Find printed answer rectangles before falling back to label-only boxes."""
+    ocr_by_page = {int(item["page_no"]): item for item in ocr_page_results}
+    proposals: list[dict[str, Any]] = []
+    for page in normalized_pages:
+        page_no = int(page["page_no"])
+        width = float(page["processed_width"])
+        height = float(page["processed_height"])
+        image_path = Path(page.get("preprocessed_image_path") or page["page_image_path"])
+        boxes = _find_answer_boxes(image_path, width, height)
+        if not boxes:
+            continue
+        labels = _find_question_labels((ocr_by_page.get(page_no) or {}).get("blocks", []), width, height)
+        for index, box in enumerate(boxes, start=1):
+            label = _label_for_box(labels, box)
+            label_value = label["question_no"] if label else f"region_{page_no}_{index}"
+            proposals.append({
+                "page_no": page_no,
+                "question_id": label_value,
+                "question_no": label_value,
+                "template_label": label_value,
+                "order": 1,
+                "bbox": box,
+                "coordinate_type": "normalized",
+                "content_type": "answer",
+                "ocr_mode": "handwriting",
+                "region_source": "auto_rectangle_layout",
+                "needs_review": True,
+                "label_bbox": label["bbox"] if label else None,
+            })
+    return proposals or propose_regions_from_ocr_pages(normalized_pages, ocr_page_results)
+
+
+def _find_answer_boxes(image_path: Path, width: float, height: float) -> list[list[float]]:
+    """Detect large printed rectangular writing areas with OpenCV line morphology."""
+    try:
+        import cv2
+    except ImportError:
+        return []
+    import numpy as np
+    image_bytes = np.fromfile(str(image_path), dtype=np.uint8)
+    image = cv2.imdecode(image_bytes, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        return []
+    page_height, page_width = image.shape[:2]
+    binary = cv2.adaptiveThreshold(
+        image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 31, 12,
+    )
+    horizontal = cv2.morphologyEx(
+        binary, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (max(40, page_width // 32), 1)),
+    )
+    vertical = cv2.morphologyEx(
+        binary, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(40, page_height // 32))),
+    )
+    lines = cv2.bitwise_or(horizontal, vertical)
+    lines = cv2.morphologyEx(lines, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9)))
+    contours, _ = cv2.findContours(lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    candidates: list[list[float]] = []
+    for contour in contours:
+        x, y, box_width, box_height = cv2.boundingRect(contour)
+        width_ratio, height_ratio = box_width / page_width, box_height / page_height
+        area_ratio = width_ratio * height_ratio
+        if width_ratio < 0.20 or height_ratio < 0.15 or area_ratio < 0.045 or area_ratio > 0.82:
+            continue
+        if x <= page_width * 0.01 and y <= page_height * 0.01:
+            continue
+        candidates.append([
+            round(max(0.0, x / page_width), 6),
+            round(max(0.0, y / page_height), 6),
+            round(min(1.0, (x + box_width) / page_width), 6),
+            round(min(1.0, (y + box_height) / page_height), 6),
+        ])
+    return _deduplicate_boxes(candidates)
+
+
+def _deduplicate_boxes(boxes: list[list[float]]) -> list[list[float]]:
+    kept: list[list[float]] = []
+    for box in sorted(boxes, key=lambda value: (value[1], value[0], -(value[2] - value[0]) * (value[3] - value[1]))):
+        if any(_intersection_over_union(box, existing) >= 0.85 for existing in kept):
+            continue
+        kept.append(box)
+    return kept
+
+
+def _intersection_over_union(first: list[float], second: list[float]) -> float:
+    left, top = max(first[0], second[0]), max(first[1], second[1])
+    right, bottom = min(first[2], second[2]), min(first[3], second[3])
+    if right <= left or bottom <= top:
+        return 0.0
+    overlap = (right - left) * (bottom - top)
+    first_area = (first[2] - first[0]) * (first[3] - first[1])
+    second_area = (second[2] - second[0]) * (second[3] - second[1])
+    return overlap / max(first_area + second_area - overlap, 1e-9)
+
+
+def _label_for_box(labels: list[dict[str, Any]], box: list[float]) -> dict[str, Any] | None:
+    for label in labels:
+        center_x = (label["left"] + label["right"]) / 2
+        center_y = (label["top"] + label["bottom"]) / 2
+        if box[0] <= center_x <= box[2] and box[1] <= center_y <= min(box[3], box[1] + 0.16):
+            return label
+    return None
 
 
 def _find_question_labels(blocks: list[dict[str, Any]], width: float, height: float) -> list[dict[str, Any]]:
@@ -141,6 +297,8 @@ def _find_question_labels(blocks: list[dict[str, Any]], width: float, height: fl
             "bbox": [round(float(value), 2) for value in bbox],
             "top": max(0.0, min(float(bbox[1]) / height, 1.0)),
             "bottom": max(0.0, min(float(bbox[3]) / height, 1.0)),
+            "left": max(0.0, min(float(bbox[0]) / width, 1.0)),
+            "right": max(0.0, min(float(bbox[2]) / width, 1.0)),
         })
     return labels
 
@@ -153,7 +311,7 @@ def _map_regions_to_exam_questions(
     for page in pages:
         for region in page["regions"]:
             regions.append({"page_no": page["page_no"], "region": region})
-    regions.sort(key=lambda item: (item["page_no"], item["region"]["bbox"][1], item["region"]["bbox"][0]))
+    regions = _sort_regions_in_reading_order(regions)
     if not questions:
         raise ValueError("Exam must have question paper results before creating an answer-sheet template")
     if len(regions) != len(questions):
@@ -163,8 +321,44 @@ def _map_regions_to_exam_questions(
         return pages, "count_mismatch"
     for item, question in zip(regions, questions):
         region = item["region"]
-        region["template_label"] = region["question_no"]
+        region["template_label"] = region.get("template_label") or region["question_no"]
         region["question_id"] = question["question_id"]
         region["question_no"] = question["question_no"]
         region["question_id_source"] = "exam_question_catalog"
+    # Keep the persisted page arrays in the same physical order used for the
+    # canonical mapping.  This makes template review and API consumers see
+    # left-to-right columns in the expected order as well.
+    ordered_by_page: dict[int, list[dict[str, Any]]] = {}
+    for item in regions:
+        ordered_by_page.setdefault(int(item["page_no"]), []).append(item["region"])
+    for page in pages:
+        page["regions"] = ordered_by_page.get(int(page["page_no"]), [])
     return pages, "mapped"
+
+
+def _sort_regions_in_reading_order(regions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Read adjacent columns left-to-right before moving to the next row."""
+    result: list[dict[str, Any]] = []
+    by_page: dict[int, list[dict[str, Any]]] = {}
+    for item in regions:
+        by_page.setdefault(int(item["page_no"]), []).append(item)
+    for page_no in sorted(by_page):
+        rows: list[list[dict[str, Any]]] = []
+        for item in sorted(by_page[page_no], key=lambda value: value["region"]["bbox"][1]):
+            box = item["region"]["bbox"]
+            matched_row = None
+            for row in rows:
+                row_box = row[0]["region"]["bbox"]
+                overlap = min(box[3], row_box[3]) - max(box[1], row_box[1])
+                min_height = min(box[3] - box[1], row_box[3] - row_box[1])
+                if min_height > 0 and overlap / min_height >= 0.45:
+                    matched_row = row
+                    break
+            if matched_row is None:
+                rows.append([item])
+            else:
+                matched_row.append(item)
+        rows.sort(key=lambda row: min(item["region"]["bbox"][1] for item in row))
+        for row in rows:
+            result.extend(sorted(row, key=lambda item: item["region"]["bbox"][0]))
+    return result

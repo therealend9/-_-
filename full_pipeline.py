@@ -2,13 +2,21 @@ from __future__ import annotations
 
 """Stable single-file A -> B processing API."""
 
+import hashlib
+import json
 from pathlib import Path
 from typing import Any, Iterable, Optional, Union
 
 from b_module.pipeline.service import process_b_module
 from d_module.pipeline import process_file_to_ocr_results
 from d_module.utils.path_utils import relativize_paths_in_data
-from template_registry.service import get_exam, get_exam_template, record_answer_sheet_submission, save_exam_questions
+from processing_registry.service import get_cached_result, save_result
+from template_registry.service import (
+    get_exam,
+    get_exam_template,
+    record_answer_sheet_submission,
+    save_exam_questions,
+)
 
 
 OUTPUT_SCHEMA_VERSION = "exam-document.v1"
@@ -51,6 +59,25 @@ def process_file_to_question_results(
     elif document_role == "answer_sheet":
         raise ValueError("answer_sheet processing requires an exam-bound template")
 
+    region_list = list(question_regions or [])
+    review_result_list = list(review_results or [])
+    fingerprint = _processing_fingerprint(
+        document_role=document_role,
+        exam_id=exam_id,
+        template=active_template,
+        source_path=source_path,
+        file_bytes=file_bytes,
+        mime_type=mime_type,
+        assignment_type=assignment_type,
+        question_regions=region_list,
+        review_results=review_result_list,
+        llm_enabled=llm_enabled,
+        include_intermediate=include_intermediate,
+    )
+    cached = get_cached_result(submission_id, fingerprint)
+    if cached is not None:
+        return cached
+
     a_result = process_file_to_ocr_results(
         submission_id=submission_id,
         origin_name=origin_name,
@@ -66,10 +93,10 @@ def process_file_to_question_results(
         page_ocr_results=a_result["ocr_page_results"],
         assignment_type=assignment_type,
         template_id=template_id,
-        question_regions=question_regions or [],
+        question_regions=region_list,
         template=active_template,
         document_role=document_role,
-        review_results=review_results or [],
+        review_results=review_result_list,
         llm_enabled=llm_enabled,
     )
 
@@ -100,7 +127,55 @@ def process_file_to_question_results(
         output["normalized_pages"] = a_result["normalized_pages"]
         output["ocr_page_results"] = a_result["ocr_page_results"]
         output["b_result"] = b_result
-    return relativize_paths_in_data(output)
+    final_output = relativize_paths_in_data(output)
+    return save_result(submission_id, fingerprint, final_output)
+
+
+def _processing_fingerprint(
+    document_role: str,
+    exam_id: Optional[str],
+    template: Optional[dict[str, Any]],
+    source_path: Optional[Union[str, Path]],
+    file_bytes: Optional[bytes],
+    mime_type: str,
+    assignment_type: str,
+    question_regions: list[dict[str, Any]],
+    review_results: list[dict[str, Any]],
+    llm_enabled: bool,
+    include_intermediate: bool,
+) -> dict[str, Any]:
+    if file_bytes is not None:
+        source_bytes = file_bytes
+    elif source_path is not None:
+        source_bytes = Path(source_path).read_bytes()
+    else:
+        raise ValueError("source_path or file_bytes is required for processing")
+    return {
+        "document_role": document_role,
+        "exam_id": str(exam_id) if exam_id is not None else None,
+        "template_id": template.get("template_id") if template else None,
+        "template_version": template.get("version") if template else None,
+        "file_sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "mime_type": mime_type,
+        "assignment_type": assignment_type,
+        "template_sha256": _structured_sha256(_template_fingerprint_payload(template)) if template else None,
+        "question_regions_sha256": _structured_sha256(question_regions),
+        "review_results_sha256": _structured_sha256(review_results),
+        "llm_enabled": bool(llm_enabled),
+        "include_intermediate": bool(include_intermediate),
+    }
+
+
+def _structured_sha256(value: Any) -> str:
+    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _template_fingerprint_payload(template: dict[str, Any]) -> dict[str, Any]:
+    """Exclude runtime-only template resolution details from idempotency checks."""
+    payload = dict(template)
+    payload.pop("_template_dir", None)
+    return payload
 
 
 def _flatten_template_regions(template: dict[str, Any]) -> list[dict[str, Any]]:

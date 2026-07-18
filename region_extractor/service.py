@@ -16,7 +16,7 @@ def crop_region(
     cv2 = _optional_cv2()
     if cv2 is None:
         return _crop_with_pillow(aligned_image_path, bbox, output_stem, inward_margin_ratio)
-    image = cv2.imread(str(aligned_image_path), cv2.IMREAD_COLOR)
+    image = _read_image(cv2, Path(aligned_image_path), cv2.IMREAD_COLOR)
     if image is None:
         raise ValueError(f"Cannot read aligned image: {aligned_image_path}")
     height, width = image.shape[:2]
@@ -31,7 +31,7 @@ def crop_region(
     crop = image[y1:y2, x1:x2]
     output_path = config.PREPROCESSED_DIR / "regions" / f"{output_stem}.png"
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(output_path), crop)
+    _write_image(cv2, output_path, crop)
     return {"image_path": str(output_path), "bbox": [x1, y1, x2, y2], "width": x2 - x1, "height": y2 - y1}
 
 
@@ -60,3 +60,20 @@ def _optional_cv2() -> Any | None:
     except ImportError:
         return None
     return cv2
+
+
+def _read_image(cv2: Any, path: Path, flags: int) -> Any | None:
+    import numpy as np
+
+    data = np.fromfile(str(path), dtype=np.uint8)
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, flags)
+
+
+def _write_image(cv2: Any, path: Path, image: Any) -> None:
+    extension = path.suffix or ".png"
+    ok, encoded = cv2.imencode(extension, image)
+    if not ok:
+        raise ValueError(f"Cannot encode image for output: {path}")
+    encoded.tofile(str(path))

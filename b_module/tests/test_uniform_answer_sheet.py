@@ -7,6 +7,8 @@ from PIL import Image, ImageDraw
 from b_module.question_segmenter import uniform_exam_processor
 from b_module.pipeline.service import _build_uniform_export
 from full_pipeline import OUTPUT_SCHEMA_VERSION
+from region_extractor import service as region_extractor_service
+from region_ocr.service import detect_blank_region
 from template_builder.service import _map_regions_to_exam_questions
 from template_registry import service as template_service
 
@@ -14,6 +16,26 @@ from template_registry import service as template_service
 def _write_image(path: Path, image: Image.Image) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
+
+
+def test_region_processing_supports_non_ascii_paths(tmp_path: Path, monkeypatch) -> None:
+    source_dir = tmp_path / "学生答卷"
+    output_dir = tmp_path / "识别输出"
+    source_dir.mkdir()
+    student_path = source_dir / "答题卡.png"
+    reference_path = source_dir / "空白模板.png"
+    student = Image.new("RGB", (100, 100), "white")
+    ImageDraw.Draw(student).rectangle((20, 20, 50, 50), fill="black")
+    _write_image(student_path, student)
+    _write_image(reference_path, Image.new("RGB", (100, 100), "white"))
+    monkeypatch.setattr(region_extractor_service.config, "PREPROCESSED_DIR", output_dir)
+
+    student_crop = region_extractor_service.crop_region(str(student_path), [0.1, 0.1, 0.9, 0.9], "学生答案")
+    reference_crop = region_extractor_service.crop_region(str(reference_path), [0.1, 0.1, 0.9, 0.9], "空白答案")
+
+    assert Path(student_crop["image_path"]).is_file()
+    result = detect_blank_region(student_crop["image_path"], reference_crop["image_path"])
+    assert result["is_blank"] is False
 
 
 def test_template_validation_and_exam_binding(tmp_path: Path, monkeypatch) -> None:
@@ -85,6 +107,63 @@ def test_bound_template_rejects_question_catalog_id_changes(tmp_path: Path, monk
         assert "question_id mismatch" in str(exc)
     else:
         raise AssertionError("Expected bound template to prevent catalog ID changes")
+
+
+def test_bound_template_freezes_question_catalog_content(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(template_service, "TEMPLATE_ROOT", tmp_path / "templates")
+    monkeypatch.setattr(template_service, "EXAM_BINDING_FILE", tmp_path / "templates" / "exam_bindings.json")
+    monkeypatch.setattr(template_service, "EXAMS_FILE", tmp_path / "templates" / "exams.json")
+    template_service.create_exam("exam_1", "Template Test")
+    template_service.save_exam_questions("exam_1", [{
+        "question_id": "2.1", "question_no": "2.1", "question_text": "Original question",
+    }], "sub_original")
+    template_service.save_template({
+        "template_id": "tpl_1", "version": 1, "page_count": 1,
+        "pages": [{"page_no": 1, "reference_width": 100, "reference_height": 100, "regions": [
+            {"question_id": "2.1", "question_no": "2.1", "order": 1, "bbox": [0.1, 0.1, 0.9, 0.9]},
+        ]}],
+    })
+    template_service.publish_template("tpl_1")
+    template_service.bind_exam_template("exam_1", "tpl_1")
+
+    try:
+        template_service.save_exam_questions("exam_1", [{
+            "question_id": "2.1", "question_no": "2.1", "question_text": "Different question text",
+        }], "sub_changed")
+    except ValueError as exc:
+        assert "Question catalog is frozen" in str(exc)
+    else:
+        raise AssertionError("Expected bound template to freeze question text")
+
+
+def test_published_template_rejects_review_and_direct_save(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(template_service, "TEMPLATE_ROOT", tmp_path / "templates")
+    template = {
+        "template_id": "tpl_published", "version": 1, "page_count": 1,
+        "pages": [{"page_no": 1, "reference_width": 100, "reference_height": 100, "regions": [
+            {"question_id": "q1", "question_no": "1", "order": 1, "bbox": [0.1, 0.1, 0.9, 0.9]},
+        ]}],
+    }
+    template_service.save_template(template)
+    published = template_service.publish_template("tpl_published")
+
+    try:
+        template_service.review_template("tpl_published", published["pages"])
+    except ValueError as exc:
+        assert "immutable" in str(exc)
+    else:
+        raise AssertionError("Expected published template review to be rejected")
+
+    changed = dict(published)
+    changed["pages"] = [{"page_no": 1, "reference_width": 100, "reference_height": 100, "regions": [
+        {"question_id": "q1", "question_no": "1", "order": 1, "bbox": [0.2, 0.1, 0.9, 0.9]},
+    ]}]
+    try:
+        template_service.save_template(changed)
+    except ValueError as exc:
+        assert "immutable" in str(exc)
+    else:
+        raise AssertionError("Expected direct published template update to be rejected")
 
 
 def test_binding_requires_draft_exam_and_published_versioned_template(tmp_path: Path, monkeypatch) -> None:

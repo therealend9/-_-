@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 from typing import Any
 
 from d_module import config
@@ -18,11 +19,11 @@ def detect_blank_region(
     cv2 = _optional_cv2()
     if cv2 is None:
         return _detect_blank_with_pillow(student_crop_path, template_crop_path, ink_threshold)
-    student = cv2.imread(str(student_crop_path), cv2.IMREAD_GRAYSCALE)
+    student = _read_image(cv2, Path(student_crop_path), cv2.IMREAD_GRAYSCALE)
     if student is None:
         raise ValueError(f"Cannot read region crop: {student_crop_path}")
     if template_crop_path:
-        template = cv2.imread(str(template_crop_path), cv2.IMREAD_GRAYSCALE)
+        template = _read_image(cv2, Path(template_crop_path), cv2.IMREAD_GRAYSCALE)
         if template is not None and template.shape == student.shape:
             delta = cv2.absdiff(student, template)
             ink_ratio = float((delta > 30).sum()) / delta.size
@@ -37,12 +38,17 @@ def run_ocr_on_region(
     image_path: str,
     ocr_mode: str = "handwriting",
 ) -> dict[str, Any]:
-    """Run the configured OCR engine on a cropped answer region.
+    """Run OCR on a cropped answer region."""
+    if ocr_mode == "handwriting" and os.getenv("HANDWRITING_OCR_ENGINE", "openvino").strip().lower() == "openvino":
+        try:
+            from region_ocr.openvino_handwriting import run_openvino_handwriting_ocr
 
-    ``ocr_mode`` is retained in the result for model routing. PaddleOCR remains
-    the installed default; deployments can replace this function with a
-    handwriting-specific engine without changing the template contract.
-    """
+            return run_openvino_handwriting_ocr(file_id=file_id, page_no=page_no, image_path=image_path)
+        except (ImportError, RuntimeError, FileNotFoundError):
+            # Keep answer-sheet processing available when a deployment has not
+            # installed the optional model assets yet.
+            pass
+
     width, height = get_image_size(image_path)
     page = NormalizedPage(
         file_id=file_id,
@@ -62,6 +68,7 @@ def run_ocr_on_region(
         "ocr_confidence": result.overall_confidence or 0.0,
         "ocr_blocks": [block.to_dict() for block in result.blocks],
         "ocr_mode": ocr_mode,
+        "ocr_engine": "paddleocr",
     }
 
 
@@ -90,3 +97,12 @@ def _optional_cv2() -> Any | None:
     except ImportError:
         return None
     return cv2
+
+
+def _read_image(cv2: Any, path: Path, flags: int) -> Any | None:
+    import numpy as np
+
+    data = np.fromfile(str(path), dtype=np.uint8)
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, flags)

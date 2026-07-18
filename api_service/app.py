@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from full_pipeline import process_file_to_question_results
+from processing_registry.service import get_result
 from template_builder.service import build_template_draft
 from template_registry.service import (
     TEMPLATE_ROOT,
@@ -64,13 +65,19 @@ class ExamStatusRequest(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    handwriting_engine = os.getenv("HANDWRITING_OCR_ENGINE", "openvino").strip().lower()
+    openvino_ready = _module_available("openvino") and _handwriting_model_available()
+    handwriting_ready = openvino_ready if handwriting_engine == "openvino" else _module_available("paddleocr") and _module_available("paddle")
     dependencies = {
         "paddleocr": _module_available("paddleocr"),
         "paddlepaddle": _module_available("paddle"),
         "opencv": _module_available("cv2"),
+        "openvino": _module_available("openvino"),
+        "handwriting_model": _handwriting_model_available(),
     }
     return {
-        "status": "ok" if dependencies["paddleocr"] and dependencies["paddlepaddle"] else "degraded",
+        "status": "ok" if dependencies["paddleocr"] and dependencies["paddlepaddle"] and dependencies["opencv"] and handwriting_ready else "degraded",
+        "handwriting_engine": handwriting_engine,
         "dependencies": dependencies,
     }
 
@@ -167,6 +174,12 @@ async def process_document_endpoint(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.get("/api/submissions/{submission_id}")
+def get_submission_result_endpoint(submission_id: str) -> dict[str, Any]:
+    """Return the exact final result previously produced by POST /api/process."""
+    return _run_or_http(lambda: get_result(submission_id))
+
+
 async def _save_upload(file: UploadFile, folder_name: str) -> tuple[Path, str]:
     content = await file.read()
     if not content:
@@ -222,8 +235,25 @@ def _runtime_http_exception(exc: RuntimeError) -> HTTPException:
                 "hint": "Use a Python runtime supported by PaddlePaddle, then install paddlepaddle and paddleocr.",
             },
         )
+    if "OpenVINO" in message or "openvino" in message or "Handwriting OCR model" in message:
+        return HTTPException(
+            status_code=503,
+            detail={
+                "error_code": "HANDWRITING_OCR_DEPENDENCY_MISSING",
+                "message": message,
+                "hint": "Install OpenVINO and deploy the configured handwriting model, or set HANDWRITING_OCR_ENGINE=paddle.",
+            },
+        )
     return HTTPException(status_code=500, detail=message)
 
 
 def _module_available(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
+
+
+def _handwriting_model_available() -> bool:
+    try:
+        from region_ocr.openvino_handwriting import DEFAULT_MODEL_PATH
+    except (ImportError, RuntimeError, FileNotFoundError):
+        return False
+    return DEFAULT_MODEL_PATH.is_file()

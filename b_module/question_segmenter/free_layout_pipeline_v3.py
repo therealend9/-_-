@@ -88,10 +88,8 @@ def split_free_layout_questions_v3(
             continue
 
         if current_state is not None and paragraph["page_no"] != current_state["page_no"] and heading_question_no is None:
-            if _should_keep_cross_page_open(current_state, paragraph):
-                _extend_candidate_state(current_state, paragraph)
-                current_state["issue_flags"].append("cross_page_candidate_extended")
-                continue
+            # Preserve page-level candidates here. The dedicated cross-page
+            # merger decides whether two adjacent parts are one question.
             _finish_candidate(file_id, question_candidates, current_state, seen_question_nos)
             current_state = None
 

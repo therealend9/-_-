@@ -10,6 +10,7 @@ storage/*
 *.zip
 outputs/
 outputs_*/
+test_artifacts/
 *.log
 
 # Local source samples and temporary uploads

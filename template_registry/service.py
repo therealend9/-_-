@@ -76,6 +76,11 @@ def save_exam_questions(exam_id: str, questions: list[dict[str, Any]], source_su
     # replace the catalog with IDs that no longer match those regions.
     if exam.get("template_id"):
         _validate_template_question_ids(get_template(exam["template_id"]), normalized)
+        existing_questions = list(exam.get("questions") or [])
+        if existing_questions and existing_questions != normalized:
+            raise ValueError("Question catalog is frozen after an answer-sheet template is bound")
+        if existing_questions == normalized:
+            return _enrich_exam(exam)
     exam["questions"] = normalized
     exam["question_catalog_source_submission_id"] = str(source_submission_id)
     exam["question_catalog_version"] = int(exam.get("question_catalog_version", 0)) + 1
@@ -174,6 +179,10 @@ def save_template(template: dict[str, Any]) -> dict[str, Any]:
     """Validate and persist a versioned template under its template ID."""
     normalized = validate_template(template)
     path = TEMPLATE_ROOT / normalized["template_id"] / "template.json"
+    if path.is_file():
+        persisted = validate_template(json.loads(path.read_text(encoding="utf-8")))
+        if persisted.get("status") == "published" and persisted != normalized:
+            raise ValueError("Published template is immutable; create a new template_id for changes")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
     return normalized
@@ -244,6 +253,7 @@ def validate_template(template: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(template, dict):
         raise ValueError("template must be an object")
     result = dict(template)
+    result.pop("_template_dir", None)
     template_id = str(result.get("template_id") or "").strip()
     if not template_id:
         raise ValueError("template_id is required")
@@ -328,6 +338,8 @@ def review_template(template_id: str, pages: list[dict[str, Any]], publish: bool
     draft can never silently become available to student submissions.
     """
     template = get_template(template_id)
+    if template.get("status") == "published":
+        raise ValueError("Published template is immutable; create a new template_id for changes")
     template.pop("_template_dir", None)
     template["pages"] = pages
     template["page_count"] = len(pages)
