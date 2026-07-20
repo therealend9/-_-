@@ -31,3 +31,7 @@ def validate_file_name(origin_name: str) -> None:
         raise ValueError("文件名不合法")
     if "/" in origin_name or "\\" in origin_name:
         raise ValueError("文件名不能包含路径分隔符")
+    if len(origin_name) > 256:
+        raise ValueError("文件名长度不能超过 256 个字符")
+    if any(ord(char) < 32 for char in origin_name):
+        raise ValueError("文件名不能包含控制字符")

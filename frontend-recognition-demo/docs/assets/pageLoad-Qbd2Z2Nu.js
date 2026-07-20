@@ -1,0 +1,1 @@
+import{t as e}from"./element-overlay-BD3mDPrQ.js";async function t(t,n,r=`页面数据加载失败`){t.value=!0;try{return await n(),!0}catch(t){return console.error(t),e.error(t?.message||r),!1}finally{t.value=!1}}export{t};

@@ -2,7 +2,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from template_builder.service import propose_regions_from_ocr_pages, propose_regions_from_page_layout
+from template_builder.service import (
+    propose_identity_regions_from_ocr_pages,
+    propose_regions_from_ocr_pages,
+    propose_regions_from_page_layout,
+)
 
 
 def test_proposals_are_pending_manual_review() -> None:
@@ -38,3 +42,20 @@ def test_rectangle_layout_proposals_prefer_answer_boxes(tmp_path: Path) -> None:
     assert [proposal["region_source"] for proposal in proposals] == ["auto_rectangle_layout"] * 2
     assert proposals[0]["bbox"][0] < 0.1
     assert proposals[1]["bbox"][0] > 0.5
+
+
+def test_identity_labels_produce_reviewable_name_and_student_number_blocks() -> None:
+    pages = [{"page_no": 1, "processed_width": 1000, "processed_height": 2000}]
+    ocr_results = [{
+        "page_no": 1,
+        "blocks": [
+            {"text": "姓名：", "bbox": [80, 100, 180, 145]},
+            {"text": "学号：", "bbox": [500, 100, 610, 145]},
+        ],
+    }]
+
+    proposals = propose_identity_regions_from_ocr_pages(pages, ocr_results)
+
+    assert [item["content_type"] for item in proposals] == ["student_name", "student_no"]
+    assert all(item["needs_review"] is True for item in proposals)
+    assert all("question_id" not in item for item in proposals)

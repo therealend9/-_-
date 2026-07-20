@@ -17,6 +17,9 @@ TEMPLATE_ROOT = Path(os.getenv("ANSWER_SHEET_TEMPLATE_ROOT", "storage/templates"
 EXAM_BINDING_FILE = TEMPLATE_ROOT / "exam_bindings.json"
 EXAMS_FILE = TEMPLATE_ROOT / "exams.json"
 SUBMISSIONS_FILE = TEMPLATE_ROOT / "answer_sheet_submissions.json"
+QUESTION_CONTENT_TYPES = {"question", "answer"}
+IDENTITY_CONTENT_TYPES = {"student_name", "student_no"}
+ALL_CONTENT_TYPES = QUESTION_CONTENT_TYPES | IDENTITY_CONTENT_TYPES
 
 
 class TemplateNotBoundError(LookupError):
@@ -292,19 +295,10 @@ def validate_template(template: dict[str, Any]) -> dict[str, Any]:
         normalized_regions: list[dict[str, Any]] = []
         for region in regions:
             region_item = dict(region)
-            question_id = str(region_item.get("question_id") or region_item.get("question_no") or "").strip()
-            question_no = str(region_item.get("question_no") or question_id).strip()
-            if not question_id or not question_no:
-                raise ValueError("every region requires question_id and question_no")
-            order = int(region_item.get("order", 1))
             ocr_mode = str(region_item.get("ocr_mode", "handwriting"))
             content_type = str(region_item.get("content_type") or ("answer" if ocr_mode == "handwriting" else "question"))
-            if content_type not in {"question", "answer"}:
-                raise ValueError("region.content_type must be 'question' or 'answer'")
-            key = (content_type, question_id, order)
-            if key in seen_region_orders:
-                raise ValueError(f"duplicate region order for question_id={question_id}")
-            seen_region_orders.add(key)
+            if content_type not in ALL_CONTENT_TYPES:
+                raise ValueError("region.content_type must be question, answer, student_name, or student_no")
             bbox = region_item.get("bbox")
             if not isinstance(bbox, list) or len(bbox) != 4:
                 raise ValueError("region.bbox must be [x1, y1, x2, y2]")
@@ -314,10 +308,23 @@ def validate_template(template: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError("only normalized template bbox coordinates are supported")
             if not (0 <= bbox[0] < bbox[2] <= 1 and 0 <= bbox[1] < bbox[3] <= 1):
                 raise ValueError("normalized region.bbox must be inside page bounds")
+            if content_type in QUESTION_CONTENT_TYPES:
+                question_id = str(region_item.get("question_id") or region_item.get("question_no") or "").strip()
+                question_no = str(region_item.get("question_no") or question_id).strip()
+                if not question_id or not question_no:
+                    raise ValueError("question/answer regions require question_id and question_no")
+                order = int(region_item.get("order", 1))
+                key = (content_type, question_id, order)
+                if key in seen_region_orders:
+                    raise ValueError(f"duplicate region order for question_id={question_id}")
+                seen_region_orders.add(key)
+                region_item.update({"question_id": question_id, "question_no": question_no, "order": order})
+            else:
+                region_item.pop("question_id", None)
+                region_item.pop("question_no", None)
+                region_item.pop("order", None)
+                ocr_mode = "excluded"
             region_item.update({
-                "question_id": question_id,
-                "question_no": question_no,
-                "order": order,
                 "bbox": bbox,
                 "coordinate_type": coordinate_type,
                 "ocr_mode": ocr_mode,
@@ -327,6 +334,8 @@ def validate_template(template: dict[str, Any]) -> dict[str, Any]:
         item.update({"page_no": page_no, "reference_width": width, "reference_height": height, "regions": normalized_regions})
         normalized_pages.append(item)
     result["pages"] = sorted(normalized_pages, key=lambda value: value["page_no"])
+    _normalize_identity_protection(result)
+    _validate_identity_region_geometry(result)
     return result
 
 
@@ -344,6 +353,8 @@ def review_template(template_id: str, pages: list[dict[str, Any]], publish: bool
     template["pages"] = pages
     template["page_count"] = len(pages)
     template["status"] = "pending_review"
+    if template.get("identity_protection", {}).get("required"):
+        template["identity_protection"]["status"] = "pending_review"
     saved = save_template(template)
     return publish_template(template_id) if publish else saved
 
@@ -355,6 +366,9 @@ def publish_template(template_id: str) -> dict[str, Any]:
     pending_regions = _pending_regions(template)
     if pending_regions:
         raise ValueError(f"Template has {len(pending_regions)} unreviewed region(s)")
+    _validate_required_identity_regions(template)
+    if template.get("identity_protection", {}).get("required"):
+        template["identity_protection"]["status"] = "confirmed"
     template["status"] = "published"
     return save_template(template)
 
@@ -400,6 +414,59 @@ def _pending_regions(template: dict[str, Any]) -> list[dict[str, Any]]:
     if not regions:
         raise ValueError("Template must contain at least one region before publishing")
     return [region for region in regions if region.get("needs_review", False)]
+
+
+def _normalize_identity_protection(template: dict[str, Any]) -> None:
+    config = template.get("identity_protection")
+    if config is None:
+        return
+    if not isinstance(config, dict):
+        raise ValueError("identity_protection must be an object")
+    required = config.get("required", False)
+    if not isinstance(required, bool):
+        raise ValueError("identity_protection.required must be boolean")
+    status = str(config.get("status", "pending_review" if required else "not_required"))
+    if status not in {"pending_review", "confirmed", "not_required"}:
+        raise ValueError("identity_protection.status is invalid")
+    template["identity_protection"] = {"required": required, "status": status}
+
+
+def _identity_regions(template: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        region
+        for page in template["pages"]
+        for region in page["regions"]
+        if region.get("content_type") in IDENTITY_CONTENT_TYPES
+    ]
+
+
+def _validate_required_identity_regions(template: dict[str, Any]) -> None:
+    if not template.get("identity_protection", {}).get("required"):
+        return
+    regions = _identity_regions(template)
+    for content_type in sorted(IDENTITY_CONTENT_TYPES):
+        matches = [region for region in regions if region["content_type"] == content_type]
+        if len(matches) != 1:
+            raise ValueError(f"Template requires exactly one {content_type} region")
+        if matches[0].get("needs_review", False):
+            raise ValueError(f"Template {content_type} region must be reviewed before publishing")
+
+
+def _validate_identity_region_geometry(template: dict[str, Any]) -> None:
+    for page in template["pages"]:
+        identity = [region for region in page["regions"] if region["content_type"] in IDENTITY_CONTENT_TYPES]
+        answer_or_question = [region for region in page["regions"] if region["content_type"] in QUESTION_CONTENT_TYPES]
+        for region in identity:
+            if any(_boxes_overlap(region["bbox"], other["bbox"]) for other in answer_or_question):
+                raise ValueError("identity region must not overlap a question or answer region")
+        if len(identity) > 1:
+            for index, region in enumerate(identity):
+                if any(_boxes_overlap(region["bbox"], other["bbox"]) for other in identity[index + 1:]):
+                    raise ValueError("student_name and student_no regions must not overlap")
+
+
+def _boxes_overlap(first: list[float], second: list[float]) -> bool:
+    return max(first[0], second[0]) < min(first[2], second[2]) and max(first[1], second[1]) < min(first[3], second[3])
 
 
 def _validate_template_question_ids(template: dict[str, Any], questions: list[dict[str, Any]]) -> None:

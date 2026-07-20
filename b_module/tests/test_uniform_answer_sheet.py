@@ -58,6 +58,39 @@ def test_template_validation_and_exam_binding(tmp_path: Path, monkeypatch) -> No
     assert template_service.get_exam_template("exam_1")["template_id"] == "tpl_test_v1"
 
 
+def test_identity_regions_are_reviewed_and_must_not_overlap_answers(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(template_service, "TEMPLATE_ROOT", tmp_path / "templates")
+    template = {
+        "template_id": "tpl_identity", "version": 1, "page_count": 1,
+        "identity_protection": {"required": True, "status": "pending_review"},
+        "pages": [{"page_no": 1, "reference_width": 100, "reference_height": 100, "regions": [
+            {"content_type": "student_name", "bbox": [0.1, 0.05, 0.4, 0.10], "needs_review": False},
+            {"content_type": "student_no", "bbox": [0.5, 0.05, 0.9, 0.10], "needs_review": False},
+            {"question_id": "q1", "question_no": "1", "order": 1, "bbox": [0.1, 0.2, 0.9, 0.9]},
+        ]}],
+    }
+    template_service.save_template(template)
+    published = template_service.publish_template("tpl_identity")
+
+    identity = [region for region in published["pages"][0]["regions"] if region["content_type"].startswith("student_")]
+    assert all("question_id" not in region for region in identity)
+    assert published["identity_protection"]["status"] == "confirmed"
+
+    overlapping = dict(template)
+    overlapping["template_id"] = "tpl_identity_overlap"
+    overlapping["pages"] = [{"page_no": 1, "reference_width": 100, "reference_height": 100, "regions": [
+        {"content_type": "student_name", "bbox": [0.1, 0.2, 0.4, 0.3], "needs_review": False},
+        {"content_type": "student_no", "bbox": [0.5, 0.05, 0.9, 0.10], "needs_review": False},
+        {"question_id": "q1", "question_no": "1", "order": 1, "bbox": [0.1, 0.2, 0.9, 0.9]},
+    ]}]
+    try:
+        template_service.save_template(overlapping)
+    except ValueError as exc:
+        assert "must not overlap" in str(exc)
+    else:
+        raise AssertionError("Expected identity/answer overlap to be rejected")
+
+
 def test_exam_binding_rejects_template_with_mismatched_question_ids(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(template_service, "TEMPLATE_ROOT", tmp_path / "templates")
     monkeypatch.setattr(template_service, "EXAM_BINDING_FILE", tmp_path / "templates" / "exam_bindings.json")

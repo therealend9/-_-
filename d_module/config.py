@@ -16,6 +16,8 @@ from typing import Optional
 BASE_STORAGE_DIR = Path(os.getenv("D_MODULE_STORAGE_ROOT", "storage"))
 
 RAW_DIR = BASE_STORAGE_DIR / "raw"
+QUARANTINE_DIR = BASE_STORAGE_DIR / "quarantine"
+ACCEPTED_DIR = BASE_STORAGE_DIR / "accepted"
 CONVERTED_DIR = BASE_STORAGE_DIR / "converted"
 PAGE_DIR = BASE_STORAGE_DIR / "pages"
 PREPROCESSED_DIR = BASE_STORAGE_DIR / "preprocessed"
@@ -33,6 +35,14 @@ DOCX_RENDER_MODES = {"mixed", "pdf", "auto"}
 
 # 第一版限制：避免超大文件拖垮服务。
 MAX_FILE_SIZE_BYTES = int(os.getenv("D_MODULE_MAX_FILE_SIZE_BYTES", str(50 * 1024 * 1024)))
+UPLOAD_CHUNK_SIZE_BYTES = int(os.getenv("D_MODULE_UPLOAD_CHUNK_SIZE_BYTES", str(1024 * 1024)))
+MAX_PDF_PAGES = int(os.getenv("D_MODULE_MAX_PDF_PAGES", "100"))
+MAX_PDF_RENDER_PIXELS = int(os.getenv("D_MODULE_MAX_PDF_RENDER_PIXELS", "50000000"))
+MAX_IMAGE_PIXELS = int(os.getenv("D_MODULE_MAX_IMAGE_PIXELS", "50000000"))
+MAX_IMAGE_DIMENSION = int(os.getenv("D_MODULE_MAX_IMAGE_DIMENSION", "20000"))
+MAX_ARCHIVE_UNPACKED_BYTES = int(os.getenv("D_MODULE_MAX_ARCHIVE_UNPACKED_BYTES", str(200 * 1024 * 1024)))
+MAX_ARCHIVE_ENTRIES = int(os.getenv("D_MODULE_MAX_ARCHIVE_ENTRIES", "1000"))
+MAX_ARCHIVE_COMPRESSION_RATIO = float(os.getenv("D_MODULE_MAX_ARCHIVE_COMPRESSION_RATIO", "100"))
 
 ALLOWED_EXTENSIONS = {"docx", "pdf", "jpg", "jpeg", "png"}
 ALLOWED_MIME_TYPES = {
@@ -78,5 +88,5 @@ def resolve_libreoffice_bin() -> Optional[str]:
 
 def ensure_storage_dirs() -> None:
     """创建模块运行需要的存储目录。"""
-    for directory in (RAW_DIR, CONVERTED_DIR, PAGE_DIR, PREPROCESSED_DIR, EXTRACTED_IMAGE_DIR):
+    for directory in (RAW_DIR, QUARANTINE_DIR, ACCEPTED_DIR, CONVERTED_DIR, PAGE_DIR, PREPROCESSED_DIR, EXTRACTED_IMAGE_DIR):
         directory.mkdir(parents=True, exist_ok=True)

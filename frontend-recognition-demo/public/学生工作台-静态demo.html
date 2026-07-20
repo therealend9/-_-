@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学生工作台 - 静态Demo</title>
+<style>
+:root {
+  --bg: #f7f6f2;
+  --card: #fcfcfa;
+  --soft: #efeee9;
+  --active: #e6e4de;
+  --line: #c9c9c9;
+  --ink: #2f2f2f;
+  --muted: #8a8a8a;
+  --primary: #3a7bd5;
+  --primary-soft: #e3f0ff;
+  --success: #4caf50;
+  --success-soft: #e8f5e9;
+  --warning: #e6a23c;
+  --warning-soft: #fdf6ec;
+  --danger: #e57373;
+  --danger-soft: #ffebee;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 32px 48px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.muted { color: var(--muted); }
+
+/* ===== Breadcrumb ===== */
+.breadcrumb { font-size: 12px; margin-bottom: 8px; }
+
+/* ===== 课程横幅 ===== */
+.course-banner {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+  background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--primary);
+  border-radius: 18px; padding: 28px 32px; margin-bottom: 20px;
+  transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+.course-banner:hover { box-shadow: var(--shadow-md); }
+.cb-left { flex: 1; min-width: 0; }
+.cb-badge {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+  color: var(--primary); background: var(--primary-soft);
+  padding: 3px 12px; border-radius: 12px; margin-bottom: 10px;
+}
+.cb-title { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 6px; }
+.cb-meta { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.cb-progress { display: flex; align-items: center; gap: 10px; }
+.cb-progress-label { font-size: 12px; color: var(--muted); }
+.cb-progress-bar {
+  width: 160px; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden;
+}
+.cb-progress-fill { height: 100%; width: 65%; border-radius: 3px; background: var(--primary); }
+.cb-progress-pct { font-size: 13px; font-weight: 700; }
+.cb-actions { display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--line); background: var(--card); cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.btn:hover { border-color: #909090; background: var(--soft); }
+.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 700; }
+.btn-primary:hover { background: #2e6bc4; border-color: #2e6bc4; }
+
+/* ===== 四模块 ===== */
+.module-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;
+}
+.module-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  border-radius: 14px; padding: 18px 20px; cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+  text-decoration: none; color: inherit;
+}
+.module-card:nth-child(1) { border-left-color: #3a7bd5; }
+.module-card:nth-child(2) { border-left-color: #e6a23c; }
+.module-card:nth-child(3) { border-left-color: #67c23a; }
+.module-card:nth-child(4) { border-left-color: #909399; }
+.module-card:hover { border-color: #909090; box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.mc-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--soft); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 20px;
+}
+.module-card:hover .mc-icon { background: var(--primary-soft); }
+.mc-body { flex: 1; min-width: 0; }
+.mc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.mc-label { font-size: 14px; font-weight: 700; }
+.mc-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.tag {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 4px; flex-shrink: 0;
+}
+.tag-warning { background: var(--warning-soft); color: #b88230; }
+.tag-info { background: var(--primary-soft); color: #3a7bd5; }
+.tag-plain { background: var(--soft); color: var(--muted); }
+.mc-arrow { color: var(--muted); flex-shrink: 0; font-size: 16px; }
+
+/* ===== 统计 ===== */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 18px 20px; text-align: center;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+.stat-card:hover { box-shadow: var(--shadow-sm); }
+.stat-label { font-size: 12px; color: var(--muted); }
+.stat-num { font-size: 28px; font-weight: 800; margin: 6px 0; }
+.stat-desc { font-size: 12px; color: var(--muted); }
+
+/* ===== 双栏 ===== */
+.two-col { display: grid; grid-template-columns: 14fr 10fr; gap: 20px; }
+.side-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 20px 22px;
+}
+.card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.card-head strong { font-size: 15px; }
+.card-link { font-size: 12px; color: var(--primary); cursor: pointer; text-decoration: none; }
+.card-link:hover { text-decoration: underline; }
+
+/* 动态 */
+.activity-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px dashed var(--line);
+}
+.activity-row:last-child { border-bottom: none; padding-bottom: 0; }
+.act-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.act-dot--quiz     { background: #3a7bd5; }
+.act-dot--feedback { background: #67c23a; }
+.act-dot--comment  { background: #e6a23c; }
+.act-dot--system   { background: #909399; }
+.act-body { flex: 1; min-width: 0; }
+.act-title { font-size: 13px; font-weight: 700; }
+.act-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.act-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+/* 反馈 */
+.fb-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px dashed var(--line);
+  cursor: pointer; font-size: 13px; text-decoration: none; color: inherit;
+}
+.fb-row:last-child { border-bottom: none; padding-bottom: 0; }
+.fb-row:hover { background: var(--soft); margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 8px; }
+.fb-score {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; background: var(--soft);
+}
+.fb-score--high { background: var(--success-soft); color: var(--success); }
+.fb-chapter { flex: 1; font-weight: 600; }
+.fb-date { font-size: 11px; color: var(--muted); }
+
+/* 更多入口 */
+.extra-card { margin-top: 16px; }
+.extra-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.extra-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  font-size: 13px; color: #4d4d4d; text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.extra-item:hover { background: var(--soft); }
+.extra-icon { font-size: 18px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="breadcrumb"><span class="muted">学生端 / 学生工作台</span></div>
+
+<!-- ══════ 当前课程 ══════ -->
+<div class="course-banner">
+  <div class="cb-left">
+    <div class="cb-badge">当前课程</div>
+    <div class="cb-title">第三章：实践与认识及其发展规律</div>
+    <div class="cb-meta">马克思主义基本原理 · 王老师 · 2023级本科1班</div>
+    <div class="cb-progress">
+      <span class="cb-progress-label">学习进度</span>
+      <div class="cb-progress-bar"><div class="cb-progress-fill"></div></div>
+      <span class="cb-progress-pct">65%</span>
+    </div>
+  </div>
+  <div class="cb-actions">
+    <a class="btn btn-primary" href="#">进入课前学习</a>
+    <a class="btn" href="#">预习小测</a>
+  </div>
+</div>
+
+<!-- ══════ 四大模块 ══════ -->
+<div class="module-grid">
+  <a class="module-card" href="#">
+    <div class="mc-icon">📖</div>
+    <div class="mc-body">
+      <div class="mc-top">
+        <span class="mc-label">课前学习</span>
+        <span class="tag tag-warning">进行中</span>
+      </div>
+      <div class="mc-desc">导学阅读 · 概念学习 · AI 提问</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+  <a class="module-card" href="#">
+    <div class="mc-icon">✏️</div>
+    <div class="mc-body">
+      <div class="mc-top">
+        <span class="mc-label">预习小测</span>
+        <span class="tag tag-info">待完成</span>
+      </div>
+      <div class="mc-desc">检验预习效果 · 即时反馈</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+  <a class="module-card" href="#">
+    <div class="mc-icon">💬</div>
+    <div class="mc-body">
+      <div class="mc-top">
+        <span class="mc-label">课中互动</span>
+        <span class="tag tag-plain">待开始</span>
+      </div>
+      <div class="mc-desc">课堂问答 · 举手 · PPT</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+  <a class="module-card" href="#">
+    <div class="mc-icon">⏱</div>
+    <div class="mc-body">
+      <div class="mc-top">
+        <span class="mc-label">随堂测验</span>
+        <span class="tag tag-info">待推送</span>
+      </div>
+      <div class="mc-desc">教师推送 · 即时提交</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+</div>
+
+<!-- ══════ 统计 ══════ -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">今日待办</div>
+    <div class="stat-num" style="color:#2f2f2f">2 项</div>
+    <div class="stat-desc">小测 · 提问</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">预习均分</div>
+    <div class="stat-num" style="color:#409EFF">85</div>
+    <div class="stat-desc">近 3 次</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">随堂均分</div>
+    <div class="stat-num" style="color:#E6A23C">78</div>
+    <div class="stat-desc">近 3 次</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">学习天数</div>
+    <div class="stat-num" style="color:#67C23A">48</div>
+    <div class="stat-desc">累计</div>
+  </div>
+</div>
+
+<!-- ══════ 双栏 ══════ -->
+<div class="two-col">
+  <!-- 最近动态 -->
+  <div class="side-card">
+    <div class="card-head"><strong>最近动态</strong></div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--quiz"></span>
+      <div class="act-body">
+        <div class="act-title">预习小测完成</div>
+        <div class="act-desc">得分 85 分，6 题正确 5 题</div>
+      </div>
+      <span class="act-time">今天 10:30</span>
+    </div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--feedback"></span>
+      <div class="act-body">
+        <div class="act-title">课后反馈已生成</div>
+        <div class="act-desc">第三章综合评分 83 分</div>
+      </div>
+      <span class="act-time">昨天 20:00</span>
+    </div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--comment"></span>
+      <div class="act-body">
+        <div class="act-title">教师点评</div>
+        <div class="act-desc">课堂讨论观点清晰，被标记为优秀回答</div>
+      </div>
+      <span class="act-time">昨天 14:30</span>
+    </div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--system"></span>
+      <div class="act-body">
+        <div class="act-title">预习任务提醒</div>
+        <div class="act-desc">第三章预习小测截止 7/15 22:00</div>
+      </div>
+      <span class="act-time">前天 08:00</span>
+    </div>
+  </div>
+
+  <!-- 右侧 -->
+  <div>
+    <!-- 课后反馈 -->
+    <div class="side-card">
+      <div class="card-head">
+        <strong>课后反馈</strong>
+        <a class="card-link" href="#">查看全部 →</a>
+      </div>
+      <a class="fb-row" href="#">
+        <span class="fb-score fb-score--high">83</span>
+        <span class="fb-chapter">第三章：实践与认识</span>
+        <span class="fb-date">07/07</span>
+      </a>
+      <a class="fb-row" href="#">
+        <span class="fb-score fb-score--high">88</span>
+        <span class="fb-chapter">第二章：人类社会</span>
+        <span class="fb-date">07/01</span>
+      </a>
+    </div>
+
+    <!-- 更多入口 -->
+    <div class="side-card extra-card">
+      <div class="card-head"><strong>更多入口</strong></div>
+      <div class="extra-grid">
+        <a class="extra-item" href="#"><span class="extra-icon">💡</span><span>AI 问答</span></a>
+        <a class="extra-item" href="#"><span class="extra-icon">🔗</span><span>知识图谱</span></a>
+        <a class="extra-item" href="#"><span class="extra-icon">📊</span><span>学习报告</span></a>
+        <a class="extra-item" href="#"><span class="extra-icon">🔔</span><span>消息通知</span></a>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

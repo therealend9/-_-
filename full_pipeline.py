@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Union
 
 from b_module.pipeline.service import process_b_module
+from d_module.data_redaction import redact_and_record
 from d_module.pipeline import process_file_to_ocr_results
 from d_module.utils.path_utils import relativize_paths_in_data
 from processing_registry.service import get_cached_result, save_result
@@ -85,7 +86,11 @@ def process_file_to_question_results(
         file_size=file_size,
         source_path=source_path,
         file_bytes=file_bytes,
-        parse_strategy="force_image_ocr" if active_template else "auto",
+        parse_strategy=(
+            "template_regions_only"
+            if active_template and document_role == "answer_sheet"
+            else "force_image_ocr" if active_template else "auto"
+        ),
     )
     b_result = process_b_module(
         file_task=a_result["file_task"],
@@ -113,12 +118,8 @@ def process_file_to_question_results(
     if document_role == "question_paper":
         question_records = export_result.get("questions") or [_question_record(item) for item in export_result.get("question_level_results", [])]
         output["questions"] = question_records
-        if exam_id:
-            save_exam_questions(exam_id, question_records, submission_id)
     else:
         output["answers"] = export_result.get("answers", [])
-        if exam_id and active_template:
-            record_answer_sheet_submission(exam_id, submission_id, active_template)
     if active_template:
         output["template_id"] = active_template["template_id"]
         output["template_name"] = active_template.get("template_name", active_template["template_id"])
@@ -128,7 +129,12 @@ def process_file_to_question_results(
         output["ocr_page_results"] = a_result["ocr_page_results"]
         output["b_result"] = b_result
     final_output = relativize_paths_in_data(output)
-    return save_result(submission_id, fingerprint, final_output)
+    redacted_output = redact_and_record(final_output, submission_id)
+    if document_role == "question_paper" and exam_id:
+        save_exam_questions(exam_id, redacted_output["questions"], submission_id)
+    if document_role == "answer_sheet" and exam_id and active_template:
+        record_answer_sheet_submission(exam_id, submission_id, active_template)
+    return save_result(submission_id, fingerprint, redacted_output)
 
 
 def _processing_fingerprint(
@@ -147,7 +153,7 @@ def _processing_fingerprint(
     if file_bytes is not None:
         source_bytes = file_bytes
     elif source_path is not None:
-        source_bytes = Path(source_path).read_bytes()
+        source_bytes = None
     else:
         raise ValueError("source_path or file_bytes is required for processing")
     return {
@@ -155,7 +161,7 @@ def _processing_fingerprint(
         "exam_id": str(exam_id) if exam_id is not None else None,
         "template_id": template.get("template_id") if template else None,
         "template_version": template.get("version") if template else None,
-        "file_sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "file_sha256": hashlib.sha256(source_bytes).hexdigest() if source_bytes is not None else _file_sha256(Path(source_path)),
         "mime_type": mime_type,
         "assignment_type": assignment_type,
         "template_sha256": _structured_sha256(_template_fingerprint_payload(template)) if template else None,
@@ -171,6 +177,14 @@ def _structured_sha256(value: Any) -> str:
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _template_fingerprint_payload(template: dict[str, Any]) -> dict[str, Any]:
     """Exclude runtime-only template resolution details from idempotency checks."""
     payload = dict(template)
@@ -183,6 +197,8 @@ def _flatten_template_regions(template: dict[str, Any]) -> list[dict[str, Any]]:
     regions: list[dict[str, Any]] = []
     for page in template.get("pages", []):
         for region in page.get("regions", []):
+            if region.get("content_type", "answer") != "answer":
+                continue
             regions.append({
                 "question_id": region["question_id"],
                 "question_no": region["question_no"],

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 """FastAPI entrypoint for the examination document-processing workflow."""
 
-import mimetypes
 import importlib.util
 import os
 from pathlib import Path
@@ -15,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from full_pipeline import process_file_to_question_results
+from d_module.file_ingest.secure_upload import UploadSecurityError, secure_upload
 from processing_registry.service import get_result
 from template_builder.service import build_template_draft
 from template_registry.service import (
@@ -115,8 +115,8 @@ async def create_template_draft_endpoint(
     version: int = Form(...),
     exam_id: str = Form(...),
 ) -> dict[str, Any]:
-    source_path, mime_type = await _save_upload(file, "template_uploads")
-    template = _run_or_http(lambda: build_template_draft(template_id, template_name, source_path, mime_type, version, exam_id))
+    uploaded = await _save_upload(file, "answer_sheet_template")
+    template = _run_or_http(lambda: build_template_draft(template_id, template_name, uploaded.source_path, uploaded.mime_type, version, exam_id))
     return {"template": template, "review_required": True}
 
 
@@ -149,18 +149,14 @@ async def process_document_endpoint(
     exam_id: str | None = Form(None),
     submission_id: str | None = Form(None),
 ) -> dict[str, Any]:
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty")
-    origin_name = file.filename or "upload.bin"
-    mime_type = _guess_mime_type(origin_name, file.content_type)
+    uploaded = await _save_upload(file, document_role)
     try:
         return process_file_to_question_results(
             submission_id=submission_id or f"sub_{uuid4().hex[:12]}",
-            origin_name=origin_name,
-            mime_type=mime_type,
-            file_size=len(content),
-            file_bytes=content,
+            origin_name=uploaded.origin_name,
+            mime_type=uploaded.mime_type,
+            file_size=uploaded.file_size,
+            source_path=uploaded.source_path,
             exam_id=exam_id,
             document_role=document_role,
         )
@@ -180,37 +176,11 @@ def get_submission_result_endpoint(submission_id: str) -> dict[str, Any]:
     return _run_or_http(lambda: get_result(submission_id))
 
 
-async def _save_upload(file: UploadFile, folder_name: str) -> tuple[Path, str]:
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty")
-    origin_name = file.filename or "upload.bin"
-    mime_type = _guess_mime_type(origin_name, file.content_type)
-    extension = Path(origin_name).suffix.lower() or _extension_for_mime_type(mime_type)
-    target_dir = Path("storage") / folder_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-    path = target_dir / f"{uuid4().hex}{extension}"
-    path.write_bytes(content)
-    return path, mime_type
-
-
-def _guess_mime_type(origin_name: str, supplied: str | None) -> str:
-    allowed = {
-        ".pdf": "application/pdf", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-    }
-    if Path(origin_name).suffix.lower() in allowed:
-        return allowed[Path(origin_name).suffix.lower()]
-    if supplied:
-        return supplied
-    guessed, _ = mimetypes.guess_type(origin_name)
-    if guessed:
-        return guessed
-    raise HTTPException(status_code=400, detail="Unsupported file type")
-
-
-def _extension_for_mime_type(mime_type: str) -> str:
-    return {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}.get(mime_type, ".bin")
+async def _save_upload(file: UploadFile, purpose: str):
+    try:
+        return await secure_upload(file, purpose)
+    except UploadSecurityError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail()) from exc
 
 
 def _run_or_http(operation):

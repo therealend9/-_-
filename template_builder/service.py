@@ -10,7 +10,7 @@ from typing import Any
 from d_module.constants import PARSE_MODE_PDF_TEXT
 from d_module.document_parser.service import classify_and_parse_document
 from d_module.file_ingest.service import create_file_task
-from d_module.ocr_engine.service import build_pdf_text_ocr_result
+from d_module.ocr_engine.service import build_pdf_text_ocr_result, run_ocr_on_page
 from d_module.page_renderer.docx_pdf_renderer import convert_docx_to_pdf
 from d_module.page_renderer.service import render_pages_to_images
 from template_registry.service import TEMPLATE_ROOT, get_exam_questions, save_template
@@ -19,6 +19,10 @@ from template_registry.service import TEMPLATE_ROOT, get_exam_questions, save_te
 QUESTION_LABEL_RE = re.compile(
     r"^\s*(?:第\s*)?(\d+(?:[.．、]\d+)?)(?:\s*[、．.）)]?\s*[:：]?\s*(?:答案)?\s*)?$"
 )
+IDENTITY_LABEL_PATTERNS = {
+    "student_name": re.compile(r"\u59d3\u540d"),
+    "student_no": re.compile(r"\u5b66\u53f7|\u5b66\u751f\u7f16\u53f7", re.IGNORECASE),
+}
 
 
 def build_template_draft(
@@ -63,6 +67,7 @@ def build_template_draft(
         "auto_generated": True,
         "exam_id": exam_id,
         "question_mapping_status": mapping_status,
+        "identity_protection": {"required": True, "status": "pending_review"},
         "page_count": len(pages),
         "pages": pages,
     }
@@ -99,11 +104,17 @@ def _load_template_pages(
         if parse_result["parse_mode"] == PARSE_MODE_PDF_TEXT and extracted and extracted.get("usable"):
             ocr_page_results.append(build_pdf_text_ocr_result(file_task.file_id, page, extracted).to_dict())
         else:
-            ocr_page_results.append({
-                "file_id": file_task.file_id,
-                "page_no": page.page_no,
-                "blocks": [],
-            })
+            # A blank scanned answer card has no PDF text layer. OCR is used
+            # once during template setup to find printed identity labels; a
+            # failed optional proposal leaves manual template review available.
+            try:
+                ocr_page_results.append(run_ocr_on_page(file_task.file_id, page).to_dict())
+            except Exception:
+                ocr_page_results.append({
+                    "file_id": file_task.file_id,
+                    "page_no": page.page_no,
+                    "blocks": [],
+                })
     return [page.to_dict() for page in pages], ocr_page_results
 
 
@@ -151,6 +162,7 @@ def _build_pages(
     template_dir: Path,
 ) -> list[dict[str, Any]]:
     proposals = propose_regions_from_page_layout(normalized_pages, ocr_page_results)
+    proposals.extend(propose_identity_regions_from_ocr_pages(normalized_pages, ocr_page_results))
     regions_by_page: dict[int, list[dict[str, Any]]] = {}
     for region in proposals:
         regions_by_page.setdefault(int(region.pop("page_no")), []).append(region)
@@ -168,6 +180,50 @@ def _build_pages(
             "regions": regions_by_page.get(page_no, []),
         })
     return pages
+
+
+def propose_identity_regions_from_ocr_pages(
+    normalized_pages: list[dict[str, Any]],
+    ocr_page_results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Propose editable identity fields beside printed name/student-number labels."""
+    ocr_by_page = {int(item["page_no"]): item for item in ocr_page_results}
+    proposals: list[dict[str, Any]] = []
+    for page in normalized_pages:
+        page_no = int(page["page_no"])
+        width = float(page["processed_width"])
+        height = float(page["processed_height"])
+        found: set[str] = set()
+        blocks = (ocr_by_page.get(page_no) or {}).get("blocks", [])
+        for block in sorted(blocks, key=lambda item: (item.get("bbox", [0, 0])[1], item.get("bbox", [0, 0])[0])):
+            text = str(block.get("text", "") or "").strip()
+            bbox = block.get("bbox") or []
+            if len(bbox) != 4:
+                continue
+            content_type = next((
+                value for value, pattern in IDENTITY_LABEL_PATTERNS.items()
+                if value not in found and pattern.search(text)
+            ), None)
+            if content_type is None:
+                continue
+            left = max(0.0, min(float(bbox[2]) / width + 0.01, 0.94))
+            top = max(0.0, min(float(bbox[1]) / height - 0.015, 0.94))
+            right = 0.94
+            bottom = max(top + 0.035, min(float(bbox[3]) / height + 0.045, 0.98))
+            if right <= left or bottom <= top:
+                continue
+            proposals.append({
+                "page_no": page_no,
+                "bbox": [round(left, 6), round(top, 6), round(right, 6), round(bottom, 6)],
+                "coordinate_type": "normalized",
+                "content_type": content_type,
+                "ocr_mode": "excluded",
+                "region_source": "auto_identity_label",
+                "needs_review": True,
+                "label_bbox": [round(float(value), 2) for value in bbox],
+            })
+            found.add(content_type)
+    return proposals
 
 
 def propose_regions_from_page_layout(
@@ -310,6 +366,8 @@ def _map_regions_to_exam_questions(
     regions: list[dict[str, Any]] = []
     for page in pages:
         for region in page["regions"]:
+            if region.get("content_type", "answer") != "answer":
+                continue
             regions.append({"page_no": page["page_no"], "region": region})
     regions = _sort_regions_in_reading_order(regions)
     if not questions:
@@ -332,7 +390,11 @@ def _map_regions_to_exam_questions(
     for item in regions:
         ordered_by_page.setdefault(int(item["page_no"]), []).append(item["region"])
     for page in pages:
-        page["regions"] = ordered_by_page.get(int(page["page_no"]), [])
+        identity_regions = [
+            region for region in page["regions"]
+            if region.get("content_type") in {"student_name", "student_no"}
+        ]
+        page["regions"] = ordered_by_page.get(int(page["page_no"]), []) + identity_regions
     return pages, "mapped"
 
 

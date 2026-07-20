@@ -47,10 +47,16 @@ def process_file_to_ocr_results(
     pages = render_pages_to_images(file_task, parse_result)
 
     force_image_ocr = parse_strategy == "force_image_ocr"
-    if parse_strategy not in {"auto", "force_image_ocr"}:
-        raise ValueError("parse_strategy must be 'auto' or 'force_image_ocr'")
+    template_regions_only = parse_strategy == "template_regions_only"
+    if parse_strategy not in {"auto", "force_image_ocr", "template_regions_only"}:
+        raise ValueError("parse_strategy must be 'auto', 'force_image_ocr', or 'template_regions_only'")
 
-    if parse_result["parse_mode"] == PARSE_MODE_DOCX_MIXED:
+    if template_regions_only:
+        # Fixed answer cards are aligned and cropped by the template route.
+        # Do not OCR the complete student page, which contains identity fields.
+        pages = preprocess_pages(pages)
+        ocr_results = []
+    elif parse_result["parse_mode"] == PARSE_MODE_DOCX_MIXED:
         # DOCX 不对整页做 OCR，只对内嵌图片 OCR；文本直接来自 DOCX。
         ocr_results = [
             build_docx_mixed_ocr_result(

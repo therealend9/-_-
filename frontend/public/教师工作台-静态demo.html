@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>教师工作台 - 静态Demo</title>
+<style>
+:root {
+  --bg: #f7f6f2; --card: #fcfcfa; --soft: #efeee9; --active: #e6e4de;
+  --line: #c9c9c9; --ink: #2f2f2f; --muted: #8a8a8a;
+  --primary: #3a7bd5; --primary-soft: #e3f0ff;
+  --success: #4caf50; --success-soft: #e8f5e9;
+  --warning: #e6a23c; --warning-soft: #fdf6ec;
+  --danger: #e57373; --danger-soft: #ffebee;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms; --duration-normal: 250ms;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:var(--bg); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC",-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased; padding:32px 48px; max-width:1100px; margin:0 auto;
+}
+.muted { color:var(--muted); }
+.muted.small { font-size:12px; }
+.breadcrumb { font-size:12px; margin-bottom:8px; }
+
+/* 横幅 */
+.course-banner {
+  display:flex; justify-content:space-between; align-items:flex-start; gap:24px;
+  background:var(--card); border:1px solid var(--line); border-left:4px solid var(--primary);
+  border-radius:18px; padding:28px 32px; margin-bottom:20px;
+  transition:box-shadow var(--duration-normal) var(--ease-out);
+}
+.course-banner:hover { box-shadow:var(--shadow-md); }
+.cb-left { flex:1; min-width:0; }
+.cb-badge {
+  display:inline-block; font-size:11px; font-weight:700; letter-spacing:1px;
+  color:var(--primary); background:var(--primary-soft);
+  padding:3px 12px; border-radius:12px; margin-bottom:10px;
+}
+.cb-title { font-size:22px; font-weight:800; letter-spacing:-0.3px; margin-bottom:6px; }
+.cb-meta { font-size:13px; color:var(--muted); margin-bottom:14px; }
+.cb-progress { display:flex; align-items:center; gap:10px; }
+.cb-progress-label { font-size:12px; color:var(--muted); }
+.cb-progress-bar { width:160px; height:6px; border-radius:3px; background:var(--soft); overflow:hidden; }
+.cb-progress-fill { height:100%; width:65%; border-radius:3px; background:var(--primary); }
+.cb-progress-pct { font-size:13px; font-weight:700; }
+.cb-actions { display:flex; flex-direction:column; gap:10px; flex-shrink:0; }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:10px 22px; border-radius:10px; font-size:14px; font-weight:600;
+  border:1px solid var(--line); background:var(--card); cursor:pointer;
+  transition:all var(--duration-fast) var(--ease-out); white-space:nowrap;
+  text-decoration:none; color:inherit;
+}
+.btn:hover { border-color:#909090; background:var(--soft); }
+.btn-primary { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:700; }
+.btn-primary:hover { background:#2e6bc4; border-color:#2e6bc4; }
+
+/* 四模块 */
+.module-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:4px; }
+.module-card {
+  display:flex; align-items:center; gap:14px;
+  background:var(--card); border:1px solid var(--line); border-left:3px solid transparent;
+  border-radius:14px; padding:18px 20px; cursor:pointer;
+  transition:all var(--duration-normal) var(--ease-out);
+  text-decoration:none; color:inherit;
+}
+.module-card:nth-child(1) { border-left-color:#67c23a; }
+.module-card:nth-child(2) { border-left-color:#409EFF; }
+.module-card:nth-child(3) { border-left-color:#e6a23c; }
+.module-card:nth-child(4) { border-left-color:#F56C6C; }
+.module-card:hover { border-color:#909090; box-shadow:var(--shadow-md); transform:translateY(-2px); }
+.mc-icon {
+  width:44px; height:44px; border-radius:12px; background:var(--soft);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:20px;
+}
+.module-card:hover .mc-icon { background:var(--primary-soft); }
+.mc-body { flex:1; min-width:0; }
+.mc-top { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.mc-label { font-size:14px; font-weight:700; }
+.mc-desc { font-size:12px; color:var(--muted); line-height:1.5; }
+.tag {
+  display:inline-block; font-size:11px; font-weight:600; padding:2px 8px;
+  border-radius:4px; flex-shrink:0;
+}
+.tag-success { background:var(--success-soft); color:#2e7d32; }
+.tag-warning { background:var(--warning-soft); color:#b88230; }
+.tag-info { background:var(--primary-soft); color:#3a7bd5; }
+.tag-danger { background:var(--danger-soft); color:#c62828; }
+.mc-arrow { color:var(--muted); flex-shrink:0; font-size:16px; }
+
+/* 统计 */
+.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.stat-card {
+  background:var(--card); border:1px solid var(--line);
+  border-radius:14px; padding:18px 20px; text-align:center;
+  transition:box-shadow var(--duration-fast);
+}
+.stat-card:hover { box-shadow:var(--shadow-sm); }
+.stat-label { font-size:12px; color:var(--muted); }
+.stat-num { font-size:28px; font-weight:800; margin:6px 0; }
+.stat-desc { font-size:12px; color:var(--muted); }
+
+/* 双栏 */
+.two-col { display:grid; grid-template-columns:14fr 10fr; gap:20px; }
+.side-card {
+  background:var(--card); border:1px solid var(--line);
+  border-radius:14px; padding:20px 22px;
+}
+.card-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.card-head strong { font-size:15px; }
+
+/* 动态 */
+.activity-row {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:12px 0; border-bottom:1px dashed var(--line);
+}
+.activity-row:last-child { border-bottom:none; padding-bottom:0; }
+.act-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.act-dot--ai      { background:#3a7bd5; }
+.act-dot--student { background:#67c23a; }
+.act-dot--warn    { background:#F56C6C; }
+.act-dot--system  { background:#909399; }
+.act-body { flex:1; min-width:0; }
+.act-title { font-size:13px; font-weight:700; }
+.act-desc { font-size:12px; color:var(--muted); margin-top:2px; }
+.act-time { font-size:11px; color:var(--muted); flex-shrink:0; }
+
+/* 快捷入口 */
+.quick-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.quick-item {
+  padding:12px 14px; border-radius:10px; cursor:pointer;
+  transition:background var(--duration-fast); text-decoration:none; color:inherit; display:block;
+}
+.quick-item:hover { background:var(--soft); }
+.quick-item strong { font-size:13px; display:block; margin-bottom:2px; }
+
+/* 状态卡片 */
+.extra-card { margin-top:16px; }
+.state-item {
+  font-size:13px; color:#4d4d4d; padding:6px 0;
+  border-bottom:1px dashed var(--line);
+}
+.state-item:last-child { border-bottom:none; }
+</style>
+</head>
+<body>
+
+<div class="breadcrumb"><span class="muted">教师端 / 教学工作台</span></div>
+
+<!-- ══════ 今日课程 ══════ -->
+<div class="course-banner">
+  <div class="cb-left">
+    <div class="cb-badge">今日课程</div>
+    <div class="cb-title">第三章：实践与认识及其发展规律</div>
+    <div class="cb-meta">马克思主义基本原理 · 2023级本科1班 · 今天 14:00 上课</div>
+    <div class="cb-progress">
+      <span class="cb-progress-label">备课进度</span>
+      <div class="cb-progress-bar"><div class="cb-progress-fill"></div></div>
+      <span class="cb-progress-pct">65%</span>
+    </div>
+  </div>
+  <div class="cb-actions">
+    <a class="btn btn-primary" href="#">进入备课</a>
+    <a class="btn" href="#">开始上课</a>
+  </div>
+</div>
+
+<!-- ══════ 四大模块 ══════ -->
+<div class="module-grid">
+  <a class="module-card" href="#">
+    <div class="mc-icon">📝</div>
+    <div class="mc-body">
+      <div class="mc-top"><span class="mc-label">教学设计</span><span class="tag tag-success">已生成</span></div>
+      <div class="mc-desc">AI 辅助教案生成 · 资源绑定</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+  <a class="module-card" href="#">
+    <div class="mc-icon">💬</div>
+    <div class="mc-body">
+      <div class="mc-top"><span class="mc-label">课堂互动</span><span class="tag tag-warning">课中</span></div>
+      <div class="mc-desc">快捷指令 · 发问 · 随堂微测</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+  <a class="module-card" href="#">
+    <div class="mc-icon">📊</div>
+    <div class="mc-body">
+      <div class="mc-top"><span class="mc-label">学情分析</span><span class="tag tag-info">可查看</span></div>
+      <div class="mc-desc">班级报告 · 学生排名 · 预警</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+  <a class="module-card" href="#">
+    <div class="mc-icon">✅</div>
+    <div class="mc-body">
+      <div class="mc-top"><span class="mc-label">批改复核</span><span class="tag tag-danger">12份待复核</span></div>
+      <div class="mc-desc">AI 批改确认 · 教师终审</div>
+    </div>
+    <span class="mc-arrow">→</span>
+  </a>
+</div>
+
+<!-- ══════ 统计 ══════ -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">今日课程</div>
+    <div class="stat-num" style="color:#409EFF">14:00</div>
+    <div class="stat-desc">第三章 · 本科1班</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">待审核</div>
+    <div class="stat-num" style="color:#E6A23C">22</div>
+    <div class="stat-desc">教案+讨论题</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">待批改</div>
+    <div class="stat-num" style="color:#F56C6C">12</div>
+    <div class="stat-desc">AI建议待确认</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">学生提问</div>
+    <div class="stat-num" style="color:#909399">18</div>
+    <div class="stat-desc">课前问题汇总</div>
+  </div>
+</div>
+
+<!-- ══════ 双栏 ══════ -->
+<div class="two-col">
+  <!-- 最近动态 -->
+  <div class="side-card">
+    <div class="card-head"><strong>最近动态</strong></div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--ai"></span>
+      <div class="act-body"><div class="act-title">AI 教案已生成</div><div class="act-desc">第三章教学设计 + 5道随堂题</div></div>
+      <span class="act-time">今天 09:30</span>
+    </div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--student"></span>
+      <div class="act-body"><div class="act-title">学生提问聚类完成</div><div class="act-desc">实践检验真理相关问题 6 条</div></div>
+      <span class="act-time">昨天 20:00</span>
+    </div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--warn"></span>
+      <div class="act-body"><div class="act-title">预警提醒</div><div class="act-desc">张同学测验均分偏低，需关注</div></div>
+      <span class="act-time">昨天 15:00</span>
+    </div>
+    <div class="activity-row">
+      <span class="act-dot act-dot--system"></span>
+      <div class="act-body"><div class="act-title">批改截止提醒</div><div class="act-desc">12 份作业复核截止 7/15</div></div>
+      <span class="act-time">前天 08:00</span>
+    </div>
+  </div>
+
+  <!-- 右侧 -->
+  <div>
+    <!-- 快捷入口 -->
+    <div class="side-card">
+      <div class="card-head"><strong>快捷入口</strong></div>
+      <div class="quick-grid">
+        <a class="quick-item" href="#"><strong>进入备课</strong><span class="muted small">查看 / 生成教案</span></a>
+        <a class="quick-item" href="#"><strong>开始上课</strong><span class="muted small">课堂互动 + 推送测验</span></a>
+        <a class="quick-item" href="#"><strong>批改复核</strong><span class="muted small">AI批改确认</span></a>
+        <a class="quick-item" href="#"><strong>题库管理</strong><span class="muted small">题目增删改查</span></a>
+      </div>
+    </div>
+
+    <!-- 课前准备 -->
+    <div class="side-card extra-card">
+      <div class="card-head"><strong>课前准备</strong></div>
+      <div class="state-item">预习完成率 76%</div>
+      <div class="state-item">高频困惑 5 类：实践标准 / 真理检验 / 价值判断...</div>
+      <div class="state-item">建议重点讲解：实践如何检验认识</div>
+    </div>
+
+    <!-- 批改复核 -->
+    <div class="side-card extra-card">
+      <div class="card-head"><strong>批改复核</strong></div>
+      <div class="state-item">OCR 低置信度 9 处</div>
+      <div class="state-item">AI 建议待确认 12 份</div>
+      <div class="state-item">异常分数 2 份需人工复核</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

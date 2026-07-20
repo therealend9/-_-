@@ -4,6 +4,11 @@ __pycache__/
 .venv/
 .venv-ocr/
 .runtime/
+frontend/node_modules/
+frontend-recognition-demo/node_modules/
+third_party/openvino_cache/
+frontend/*.log
+frontend-recognition-demo/*.log
 
 # Runtime data and generated results
 storage/*

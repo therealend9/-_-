@@ -1,0 +1,86 @@
+:root {
+  --bg: #f7f6f2;
+  --card: #fcfcfa;
+  --soft: #efeee9;
+  --active: #e6e4de;
+  --line: #c9c9c9;
+  --ink: #2f2f2f;
+  --muted: #8a8a8a;
+
+  /* Accent colors */
+  --success: #4caf50;
+  --success-soft: #e8f5e9;
+  --success-border: #a5d6a7;
+  --primary: #3a7bd5;
+  --primary-soft: #e3f0ff;
+  --primary-border: #90caf9;
+  --warning: #e6a23c;
+  --warning-soft: #fdf6ec;
+  --warning-border: #f5dab1;
+  --danger: #e57373;
+  --danger-soft: #ffebee;
+  --danger-border: #ef9a9a;
+
+  /* Transitions */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* Shadows (subtle, warm-toned) */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Focus ring for accessibility */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--primary-soft);
+  color: var(--ink);
+}
