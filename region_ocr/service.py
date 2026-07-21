@@ -39,7 +39,10 @@ def run_ocr_on_region(
     ocr_mode: str = "handwriting",
 ) -> dict[str, Any]:
     """Run OCR on a cropped answer region."""
-    if ocr_mode == "handwriting" and os.getenv("HANDWRITING_OCR_ENGINE", "openvino").strip().lower() == "openvino":
+    # PaddleOCR is the default handwriting route because it detects text lines
+    # inside complex answer regions; OpenVINO remains available when explicitly
+    # selected through HANDWRITING_OCR_ENGINE=openvino.
+    if ocr_mode == "handwriting" and os.getenv("HANDWRITING_OCR_ENGINE", "paddleocr").strip().lower() == "openvino":
         try:
             from region_ocr.openvino_handwriting import run_openvino_handwriting_ocr
 
