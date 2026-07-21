@@ -82,6 +82,17 @@
 
 读取一次成功 `POST /api/process` 的已保存最终结果。响应结构与原处理接口完全一致。
 
+### 可选的内部处理查询接口
+
+以下接口用于前端展示处理进度和复核信息，不改变 `POST /api/process` 或
+`GET /api/submissions/{submission_id}` 的输出结构：
+
+- `GET /api/submissions/{submission_id}/task`：读取处理状态、输出数量、待复核数量和安全的失败原因；
+- `GET /api/submissions/{submission_id}/answers`：读取已经脱敏的逐题内部记录，用于复核页面；
+- `GET /api/submissions/{submission_id}/reviews`：读取 OCR 文本复核记录。
+
+上述接口不会返回姓名、学号、专业、学院、年级或身份区域图片。身份信息继续仅保存在受保护的内部绑定记录中。
+
 ### 试题卷
 
 `document_role=question_paper`，使用自由版式识别，成功响应包含：

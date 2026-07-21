@@ -18,7 +18,8 @@ EXAM_BINDING_FILE = TEMPLATE_ROOT / "exam_bindings.json"
 EXAMS_FILE = TEMPLATE_ROOT / "exams.json"
 SUBMISSIONS_FILE = TEMPLATE_ROOT / "answer_sheet_submissions.json"
 QUESTION_CONTENT_TYPES = {"question", "answer"}
-IDENTITY_CONTENT_TYPES = {"student_name", "student_no"}
+IDENTITY_CONTENT_TYPES = {"student_name", "student_no", "major", "college", "grade"}
+REQUIRED_IDENTITY_CONTENT_TYPES = {"student_name", "student_no"}
 ALL_CONTENT_TYPES = QUESTION_CONTENT_TYPES | IDENTITY_CONTENT_TYPES
 
 
@@ -113,7 +114,12 @@ def set_exam_status(exam_id: str, status: str) -> dict[str, Any]:
     return _enrich_exam(exams[key])
 
 
-def record_answer_sheet_submission(exam_id: str, submission_id: str, template: dict[str, Any]) -> dict[str, Any]:
+def record_answer_sheet_submission(
+    exam_id: str,
+    submission_id: str,
+    template: dict[str, Any],
+    identity_fields: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Persist a successful answer-sheet submission for template-change guards."""
     if not submission_id:
         raise ValueError("submission_id is required")
@@ -132,12 +138,22 @@ def record_answer_sheet_submission(exam_id: str, submission_id: str, template: d
         "template_id": expected_template_id,
         "template_version": int(template["version"]),
     }
+    if identity_fields is not None:
+        record["identity_fields"] = identity_fields
     existing = submissions.get(submission_key)
     if existing and existing != record:
         raise ValueError(f"submission_id is already associated with another exam or template: {submission_id}")
     submissions[submission_key] = record
     _write_json(SUBMISSIONS_FILE, submissions)
     return record
+
+
+def get_answer_sheet_submission(submission_id: str) -> dict[str, Any]:
+    """Return the protected internal binding record for a submission."""
+    record = _load_submissions().get(str(submission_id))
+    if not record:
+        raise FileNotFoundError(f"Answer-sheet submission not found: {submission_id}")
+    return dict(record)
 
 
 def _enrich_exam(exam: dict[str, Any]) -> dict[str, Any]:
@@ -298,7 +314,9 @@ def validate_template(template: dict[str, Any]) -> dict[str, Any]:
             ocr_mode = str(region_item.get("ocr_mode", "handwriting"))
             content_type = str(region_item.get("content_type") or ("answer" if ocr_mode == "handwriting" else "question"))
             if content_type not in ALL_CONTENT_TYPES:
-                raise ValueError("region.content_type must be question, answer, student_name, or student_no")
+                raise ValueError(
+                    "region.content_type must be question, answer, student_name, student_no, major, college, or grade"
+                )
             bbox = region_item.get("bbox")
             if not isinstance(bbox, list) or len(bbox) != 4:
                 raise ValueError("region.bbox must be [x1, y1, x2, y2]")
@@ -444,11 +462,17 @@ def _validate_required_identity_regions(template: dict[str, Any]) -> None:
     if not template.get("identity_protection", {}).get("required"):
         return
     regions = _identity_regions(template)
-    for content_type in sorted(IDENTITY_CONTENT_TYPES):
+    for content_type in sorted(REQUIRED_IDENTITY_CONTENT_TYPES):
         matches = [region for region in regions if region["content_type"] == content_type]
         if len(matches) != 1:
             raise ValueError(f"Template requires exactly one {content_type} region")
         if matches[0].get("needs_review", False):
+            raise ValueError(f"Template {content_type} region must be reviewed before publishing")
+    for content_type in sorted(IDENTITY_CONTENT_TYPES - REQUIRED_IDENTITY_CONTENT_TYPES):
+        matches = [region for region in regions if region["content_type"] == content_type]
+        if len(matches) > 1:
+            raise ValueError(f"Template allows at most one {content_type} region")
+        if matches and matches[0].get("needs_review", False):
             raise ValueError(f"Template {content_type} region must be reviewed before publishing")
 
 
@@ -462,7 +486,7 @@ def _validate_identity_region_geometry(template: dict[str, Any]) -> None:
         if len(identity) > 1:
             for index, region in enumerate(identity):
                 if any(_boxes_overlap(region["bbox"], other["bbox"]) for other in identity[index + 1:]):
-                    raise ValueError("student_name and student_no regions must not overlap")
+                    raise ValueError("identity regions must not overlap")
 
 
 def _boxes_overlap(first: list[float], second: list[float]) -> bool:

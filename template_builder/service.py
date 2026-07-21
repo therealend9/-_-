@@ -13,7 +13,7 @@ from d_module.file_ingest.service import create_file_task
 from d_module.ocr_engine.service import build_pdf_text_ocr_result, run_ocr_on_page
 from d_module.page_renderer.docx_pdf_renderer import convert_docx_to_pdf
 from d_module.page_renderer.service import render_pages_to_images
-from template_registry.service import TEMPLATE_ROOT, get_exam_questions, save_template
+from template_registry.service import IDENTITY_CONTENT_TYPES, TEMPLATE_ROOT, get_exam_questions, save_template
 
 
 QUESTION_LABEL_RE = re.compile(
@@ -22,6 +22,9 @@ QUESTION_LABEL_RE = re.compile(
 IDENTITY_LABEL_PATTERNS = {
     "student_name": re.compile(r"\u59d3\u540d"),
     "student_no": re.compile(r"\u5b66\u53f7|\u5b66\u751f\u7f16\u53f7", re.IGNORECASE),
+    "major": re.compile(r"\u4e13\u4e1a"),
+    "college": re.compile(r"\u5b66\u9662|\u9662\u7cfb"),
+    "grade": re.compile(r"\u5e74\u7ea7"),
 }
 
 
@@ -186,7 +189,7 @@ def propose_identity_regions_from_ocr_pages(
     normalized_pages: list[dict[str, Any]],
     ocr_page_results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Propose editable identity fields beside printed name/student-number labels."""
+    """Propose editable identity fields beside printed student-information labels."""
     ocr_by_page = {int(item["page_no"]): item for item in ocr_page_results}
     proposals: list[dict[str, Any]] = []
     for page in normalized_pages:
@@ -217,7 +220,7 @@ def propose_identity_regions_from_ocr_pages(
                 "bbox": [round(left, 6), round(top, 6), round(right, 6), round(bottom, 6)],
                 "coordinate_type": "normalized",
                 "content_type": content_type,
-                "ocr_mode": "excluded",
+                "ocr_mode": "handwriting",
                 "region_source": "auto_identity_label",
                 "needs_review": True,
                 "label_bbox": [round(float(value), 2) for value in bbox],
@@ -392,7 +395,7 @@ def _map_regions_to_exam_questions(
     for page in pages:
         identity_regions = [
             region for region in page["regions"]
-            if region.get("content_type") in {"student_name", "student_no"}
+            if region.get("content_type") in IDENTITY_CONTENT_TYPES
         ]
         page["regions"] = ordered_by_page.get(int(page["page_no"]), []) + identity_regions
     return pages, "mapped"

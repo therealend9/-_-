@@ -7,6 +7,15 @@ from d_module.data_redaction import service as redaction_service
 from processing_registry import service as result_service
 
 
+@pytest.fixture(autouse=True)
+def _isolate_internal_registry(tmp_path, monkeypatch):
+    root = tmp_path / "registry"
+    monkeypatch.setattr(result_service, "REGISTRY_ROOT", root)
+    monkeypatch.setattr(result_service, "TASK_INDEX_FILE", root / "tasks.json")
+    monkeypatch.setattr(result_service, "ANSWER_INDEX_FILE", root / "answers.json")
+    monkeypatch.setattr(result_service, "REVIEW_INDEX_FILE", root / "reviews.json")
+
+
 def test_full_pipeline_reuses_persisted_result_for_identical_retry(tmp_path, monkeypatch) -> None:
     root = tmp_path / "results"
     monkeypatch.setattr(result_service, "RESULT_ROOT", root)
@@ -149,3 +158,35 @@ def test_answer_sheet_template_skips_whole_page_ocr_and_ignores_identity_regions
     assert captured["parse_strategy"] == "template_regions_only"
     assert [region["question_id"] for region in captured["question_regions"]] == ["q1"]
     assert result["answers"][0]["answer_text"] == "Answer"
+
+
+def test_review_records_are_redacted_before_internal_persistence(tmp_path, monkeypatch) -> None:
+    root = tmp_path / "results"
+    monkeypatch.setattr(result_service, "RESULT_ROOT", root)
+    monkeypatch.setattr(result_service, "RESULT_INDEX_FILE", root / "index.json")
+    monkeypatch.setattr(redaction_service, "REDACTION_ROOT", tmp_path / "redaction")
+    monkeypatch.setattr(full_pipeline, "process_file_to_ocr_results", lambda **kwargs: {
+        "file_task": {"file_id": "file_1"}, "normalized_pages": [], "ocr_page_results": [],
+    })
+    monkeypatch.setattr(full_pipeline, "process_b_module", lambda **kwargs: {
+        "export_result": {"questions": [{
+            "question_id": "q1", "question_no": "1", "question_text": "Question",
+            "page_nos": [1], "confidence": 1.0, "needs_review": False, "risk_flags": [],
+        }]},
+    })
+
+    full_pipeline.process_file_to_question_results(
+        submission_id="sub_review_redaction",
+        origin_name="paper.pdf",
+        mime_type="application/pdf",
+        file_bytes=b"same document",
+        document_role="question_paper",
+        review_results=[{
+            "review_id": "review_1", "question_no": "1",
+            "before_text": "姓名：张三", "after_text": "学号：202401001",
+        }],
+    )
+
+    review = result_service.get_review_records("sub_review_redaction")[0]
+    assert review["before_text"] == "姓名:[REDACTED]"
+    assert review["after_text"] == "学号:[REDACTED]"

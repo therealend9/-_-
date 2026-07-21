@@ -13,9 +13,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from api_service.friendly_errors import runtime_message, teacher_message
 from full_pipeline import process_file_to_question_results
 from d_module.file_ingest.secure_upload import UploadSecurityError, secure_upload
-from processing_registry.service import get_result
+from processing_registry.service import (
+    ensure_task_from_result,
+    get_answer_records,
+    get_result,
+    get_review_records,
+    get_task,
+)
 from template_builder.service import build_template_draft
 from template_registry.service import (
     TEMPLATE_ROOT,
@@ -161,19 +168,48 @@ async def process_document_endpoint(
             document_role=document_role,
         )
     except TemplateNotBoundError as exc:
-        raise HTTPException(status_code=422, detail={"error_code": "TEMPLATE_NOT_BOUND", "message": str(exc)}) from exc
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error_code": "TEMPLATE_NOT_BOUND",
+                "message": "该考试尚未绑定可用的答题卡模板。请先创建、复核并发布模板。",
+            },
+        ) from exc
     except (ValueError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=teacher_message(str(exc))) from exc
     except RuntimeError as exc:
         raise _runtime_http_exception(exc) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail="文件处理没有完成。请检查文件后重试；如果仍然失败，请联系管理员。",
+        ) from exc
 
 
 @app.get("/api/submissions/{submission_id}")
 def get_submission_result_endpoint(submission_id: str) -> dict[str, Any]:
     """Return the exact final result previously produced by POST /api/process."""
-    return _run_or_http(lambda: get_result(submission_id))
+    result = _run_or_http(lambda: get_result(submission_id))
+    _run_or_http(lambda: ensure_task_from_result(submission_id, result))
+    return result
+
+
+@app.get("/api/submissions/{submission_id}/task")
+def get_submission_task_endpoint(submission_id: str) -> dict[str, Any]:
+    """Return internal task status without changing the final result contract."""
+    return _run_or_http(lambda: get_task(submission_id))
+
+
+@app.get("/api/submissions/{submission_id}/answers")
+def get_submission_answers_endpoint(submission_id: str) -> dict[str, Any]:
+    """Return stored, already-redacted per-question records for review workflows."""
+    return {"submission_id": submission_id, "records": _run_or_http(lambda: get_answer_records(submission_id))}
+
+
+@app.get("/api/submissions/{submission_id}/reviews")
+def get_submission_reviews_endpoint(submission_id: str) -> dict[str, Any]:
+    """Return internal OCR review records. Identity information is excluded."""
+    return {"submission_id": submission_id, "records": _run_or_http(lambda: get_review_records(submission_id))}
 
 
 async def _save_upload(file: UploadFile, purpose: str):
@@ -187,34 +223,20 @@ def _run_or_http(operation):
     try:
         return operation()
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail=teacher_message(str(exc))) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=teacher_message(str(exc))) from exc
     except RuntimeError as exc:
         raise _runtime_http_exception(exc) from exc
 
 
 def _runtime_http_exception(exc: RuntimeError) -> HTTPException:
-    message = str(exc)
-    if "PaddleOCR" in message or "paddleocr" in message or "paddlepaddle" in message:
-        return HTTPException(
-            status_code=503,
-            detail={
-                "error_code": "OCR_DEPENDENCY_MISSING",
-                "message": message,
-                "hint": "Use a Python runtime supported by PaddlePaddle, then install paddlepaddle and paddleocr.",
-            },
-        )
-    if "OpenVINO" in message or "openvino" in message or "Handwriting OCR model" in message:
-        return HTTPException(
-            status_code=503,
-            detail={
-                "error_code": "HANDWRITING_OCR_DEPENDENCY_MISSING",
-                "message": message,
-                "hint": "Install OpenVINO and deploy the configured handwriting model, or set HANDWRITING_OCR_ENGINE=paddle.",
-            },
-        )
-    return HTTPException(status_code=500, detail=message)
+    error_code, message, hint = runtime_message(str(exc))
+    status_code = 503 if error_code != "PROCESSING_FAILED" else 500
+    return HTTPException(
+        status_code=status_code,
+        detail={"error_code": error_code, "message": message, "hint": hint},
+    )
 
 
 def _module_available(name: str) -> bool:

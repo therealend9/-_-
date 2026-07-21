@@ -8,10 +8,18 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Union
 
 from b_module.pipeline.service import process_b_module
-from d_module.data_redaction import redact_and_record
+from d_module.data_redaction import redact_and_record, redact_result
 from d_module.pipeline import process_file_to_ocr_results
 from d_module.utils.path_utils import relativize_paths_in_data
-from processing_registry.service import get_cached_result, save_result
+from identity_extractor import extract_identity_fields
+from processing_registry.service import (
+    ensure_task_from_result,
+    finalize_submission,
+    get_cached_result,
+    mark_task_failed,
+    save_result,
+    start_task,
+)
 from template_registry.service import (
     get_exam,
     get_exam_template,
@@ -40,7 +48,64 @@ def process_file_to_question_results(
     template: Optional[dict[str, Any]] = None,
     document_role: str = "question_paper",
 ) -> dict[str, Any]:
-    """Run the complete file -> OCR -> question-level pipeline."""
+    """Run the complete file -> OCR -> question-level pipeline.
+
+    The public result stays ``exam-document.v1``. Task, answer and review
+    records are maintained internally for later teacher-facing queries.
+    """
+    start_task(submission_id, {
+        "document_role": document_role,
+        "exam_id": exam_id,
+        "template_id": template_id or (template or {}).get("template_id"),
+        "template_version": (template or {}).get("version"),
+    })
+    try:
+        result = _process_file_to_question_results(
+            submission_id=submission_id,
+            origin_name=origin_name,
+            mime_type=mime_type,
+            assignment_type=assignment_type,
+            file_size=file_size,
+            source_path=source_path,
+            file_bytes=file_bytes,
+            template_id=template_id,
+            question_regions=question_regions,
+            review_results=review_results,
+            llm_enabled=llm_enabled,
+            include_intermediate=include_intermediate,
+            exam_id=exam_id,
+            template=template,
+            document_role=document_role,
+        )
+        ensure_task_from_result(submission_id, result)
+        return result
+    except Exception:
+        mark_task_failed(
+            submission_id,
+            "PROCESSING_FAILED",
+            "文件处理未完成，请检查文件、考试和答题卡模板设置后重试。",
+        )
+        raise
+
+
+def _process_file_to_question_results(
+    submission_id: str,
+    origin_name: str,
+    mime_type: str,
+    assignment_type: str = "homework",
+    file_size: Optional[int] = None,
+    source_path: Optional[Union[str, Path]] = None,
+    file_bytes: Optional[bytes] = None,
+    template_id: Optional[str] = None,
+    question_regions: Optional[Iterable[dict[str, Any]]] = None,
+    review_results: Optional[Iterable[dict[str, Any]]] = None,
+    llm_enabled: bool = False,
+    include_intermediate: bool = False,
+    exam_id: Optional[str] = None,
+    template: Optional[dict[str, Any]] = None,
+    document_role: str = "question_paper",
+) -> dict[str, Any]:
+    """Core processing implementation kept separate from task bookkeeping."""
     if document_role not in {"question_paper", "answer_sheet"}:
         raise ValueError("document_role must be 'question_paper' or 'answer_sheet'")
     active_template = template
@@ -132,9 +197,31 @@ def process_file_to_question_results(
     redacted_output = redact_and_record(final_output, submission_id)
     if document_role == "question_paper" and exam_id:
         save_exam_questions(exam_id, redacted_output["questions"], submission_id)
+    identity_fields: dict[str, Any] | None = None
     if document_role == "answer_sheet" and exam_id and active_template:
-        record_answer_sheet_submission(exam_id, submission_id, active_template)
-    return save_result(submission_id, fingerprint, redacted_output)
+        identity_fields = extract_identity_fields(
+            file_id=str(a_result["file_task"]["file_id"]),
+            template=active_template,
+            normalized_pages=a_result["normalized_pages"],
+        )
+        record_answer_sheet_submission(
+            exam_id,
+            submission_id,
+            active_template,
+            identity_fields=identity_fields,
+        )
+    saved = save_result(submission_id, fingerprint, redacted_output)
+    redacted_reviews, _ = redact_result({
+        "submission_id": submission_id,
+        "reviews": review_result_list,
+    })
+    finalize_submission(
+        submission_id,
+        saved,
+        review_records=redacted_reviews["reviews"],
+        identity_needs_review=bool(identity_fields and identity_fields.get("status") == "needs_review"),
+    )
+    return saved
 
 
 def _processing_fingerprint(
